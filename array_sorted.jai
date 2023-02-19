@@ -1,6 +1,31 @@
 #import "Basic";
 #import,file "debug.jai";
 
+SortedArray :: struct(T: Type) {
+    array: [..]T;
+#place array;
+    count: s64;
+    data: *void;
+}
+
+operator [] :: inline (using sorted_array: SortedArray($T), index: int) -> T {
+    return array[index];
+}
+
+free :: inline (using sorted_array: *SortedArray) {
+    array_free(*array);
+}
+
+sorted_array :: (
+    $T: Type,
+    count:=0,
+    allocator: Allocator = .{}, 
+    alignment: s32 = -1
+) -> SortedArray(T) {
+    return .{
+        NewResizableArray(count, T, false, allocator, alignment)
+    };
+}
 
 FindClosest :: enum u8 {
     NONE;
@@ -8,7 +33,7 @@ FindClosest :: enum u8 {
     NEXT;
 }
 
-array_find_sorted :: (array: []$T, val: T, $closest:=FindClosest.NONE) -> index: int, found: bool {
+find :: (using sorted_array: SortedArray($T), val: T, $closest:=FindClosest.NONE) -> index: int, found: bool {
     Debug(false);
 
     if !array then return -1, false;
@@ -42,8 +67,9 @@ array_find_sorted :: (array: []$T, val: T, $closest:=FindClosest.NONE) -> index:
     return -1, false;
 }
 
-array_insert_sorted :: (array: *[..]$T, val: T, $unique:=false) -> index:int, new_entry:bool {
+insert :: (sorted_array: *SortedArray($T), val: T, $unique:=false) -> index:int, new_entry:bool {
     Debug(false);
+    array := *sorted_array.array;
 
     debugln("array_insert_sorted: array %, val %, unique %\n", <<array, val, unique);
 
@@ -95,4 +121,8 @@ array_insert_sorted :: (array: *[..]$T, val: T, $unique:=false) -> index:int, ne
 
     assert(false, "cannot be reached");
     return -1, false;
+}
+
+remove_by_index :: inline (using sorted_array: *SortedArray, index: s64) {
+    array_ordered_remove_by_index(*array, index);
 }

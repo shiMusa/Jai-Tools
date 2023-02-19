@@ -18,15 +18,23 @@ TempNewResizableArray :: (count: s64, $T: Type, $initialized := true, allocator 
     return res;
 }
 
+
+// ######## ##     ## ##    ##  ######  ######## ####  #######  ##    ##  ######
+// ##       ##     ## ###   ## ##    ##    ##     ##  ##     ## ###   ## ##    ##
+// ##       ##     ## ####  ## ##          ##     ##  ##     ## ####  ## ##
+// ######   ##     ## ## ## ## ##          ##     ##  ##     ## ## ## ##  ######
+// ##       ##     ## ##  #### ##          ##     ##  ##     ## ##  ####       ##
+// ##       ##     ## ##   ### ##    ##    ##     ##  ##     ## ##   ### ##    ##
+// ##        #######  ##    ##  ######     ##    ####  #######  ##    ##  ######
+
 array_equal :: (a: []$T, b: []T) -> bool {
     if a.count != b.count return false;
     for a if it != b[it_index] return false;
     return true;
 }
 
-
 minmax :: (arr: []$T) -> T, T {
-    assert(arr.count > 0);
+    assert(arr.count > 0, "Cannot find min or max value of empty array.");
     min := arr[0];
     max := arr[0];
     for i: 1..arr.count-1 {
