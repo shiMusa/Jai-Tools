@@ -17,8 +17,7 @@ debugln :: inline (msg: string, args: ..Any, $print_head:=true) #expand {
 debugln :: inline (arg: Any, $print_head:=true) #expand {
     #if `DEBUG {
         #if print_head print("% | ", `DEBUG_HEAD);
-        print(arg);
-        print("\n");
+        print("%\n", arg);
     }
 }
 
