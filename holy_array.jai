@@ -144,30 +144,30 @@ debug_print :: (arr: HolyArray) {
 
 // #scope_export
 
-// main :: () {
-//     arr := NewHolyArray(float);
+main :: () {
+    arr := NewHolyArray(float);
 
-//     array_add(*arr, 42.0);
-//     i313 := array_add(*arr, 313.0);
-//     print("added 313 at index %\n", i313);
-//     array_add(*arr, 777.0);
+    array_add(*arr, 42.0);
+    i313 := array_add(*arr, 313.0);
+    print("added 313 at index %\n", i313);
+    array_add(*arr, 777.0);
 
-//     print("HolyArray: %\n", arr);
-//     for arr print("%: %\n", it_index, it);
+    print("HolyArray: %\n", arr);
+    for arr print("%: %\n", it_index, it);
 
-//     v := array_remove_at(*arr, 1);
-//     print("removed value %\n", v);
-//     print("HolyArray: %\n", arr);
-//     print("next hole: %\n", arr.data[0].next_free);
-//     for arr print("%: %\n", it_index, it);
-//     debug_print(arr);
+    v := array_remove_at(*arr, 1);
+    print("removed value %\n", v);
+    print("HolyArray: %\n", arr);
+    print("next hole: %\n", arr.data[0].next_free);
+    for arr print("%: %\n", it_index, it);
+    debug_print(arr);
 
-//     array_add(*arr, 2077.0);
-//     print("HolyArray: %\n", arr);
-//     print("next hole: %\n", arr.data[0].next_free);
-//     for   arr print("%: %\n", it_index, it);
-//     for < arr print("%: %\n", it_index, it);
-//     for  *arr print("%: <<% = %\n", it_index, it, <<it);
-//     for <*arr print("%: <<% = %\n", it_index, it, <<it);
-//     debug_print(arr);
-// }
+    array_add(*arr, 2077.0);
+    print("HolyArray: %\n", arr);
+    print("next hole: %\n", arr.data[0].next_free);
+    for   arr print("%: %\n", it_index, it);
+    for < arr print("%: %\n", it_index, it);
+    for  *arr print("%: <<% = %\n", it_index, it, <<it);
+    for <*arr print("%: <<% = %\n", it_index, it, <<it);
+    debug_print(arr);
+}
