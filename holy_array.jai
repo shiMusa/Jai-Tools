@@ -1,4 +1,5 @@
 #import,file "debug.jai";
+#import,file "bitfield.jai";
 #import "Basic";
 
 HolyArray :: struct(T: Type) {
@@ -8,22 +9,13 @@ HolyArray :: struct(T: Type) {
     }
 
     data: [..]Entry;
-    occupied: [..]u32;
+    occupied: ResizableBitField;
 }
-
-#scope_file
-calc_occupied_indices :: (index: u32) -> u32, u32 {
-    bit_idx := index % 32;
-    occ_idx := (index - bit_idx)/32;
-    return occ_idx, bit_idx;
-}
-#scope_export
 
 NewHolyArray :: ($T: Type) -> HolyArray(T) {
     res : HolyArray(T);
     e := array_add(*res.data);
     e.next_free = cast(u32)res.data.count;
-    array_add(*res.occupied, 0);
     return res;
 }
 
@@ -38,16 +30,8 @@ array_add :: (arr: *HolyArray($T), value: T) -> int {
         new_entry := array_add(*arr.data);
         new_entry.value = value;
         arr.data[0].next_free = cast(u32)arr.data.count;
-
-        occ_idx, bit_idx := calc_occupied_indices(cast(u32)(index-1));
-
-        debugln("% corresponds to %, % indices in occupied array.", index-1, occ_idx, bit_idx);
-
-        if occ_idx >= arr.occupied.count {
-            array_add(*arr.occupied, cast(u32)1 << bit_idx);
-        } else {
-            arr.occupied[occ_idx] |= cast(u32)1 << bit_idx;
-        }
+        
+        bitfield_add(*arr.occupied, true);
 
         return arr.data.count - 1;
     }
@@ -60,8 +44,7 @@ array_add :: (arr: *HolyArray($T), value: T) -> int {
     arr.data[hole].value = value;
     arr.data[0].next_free = next_hole;
 
-    occ_idx, bit_idx := calc_occupied_indices(cast(u32)(hole-1));
-    arr.occupied[occ_idx] |= cast(u32)1 << bit_idx;
+    arr.occupied[hole-1] = true;
 
     return hole-1; // "-1" because the first valid position to put a value is at 1 instead of 0 as usual
 }
@@ -73,10 +56,8 @@ array_remove_at :: (arr: *HolyArray($T), index: int) -> T {
     arr.data[index+1].next_free = arr.data[0].next_free;
     arr.data[0].next_free = cast(u32)(index+1);
 
-    occ_idx, bit_idx := calc_occupied_indices(cast(u32)index);
-    debugln("% corresponds to %, % indices in occupied array.", index-1, occ_idx, bit_idx);
+    arr.occupied[index] = false;
 
-    arr.occupied[occ_idx] &= ~(cast(u32)1 << bit_idx);
     return res;
 }
 
@@ -96,8 +77,7 @@ operator *[] :: (arr: HolyArray($T), index: int) -> *T {
 for_expansion :: (arr: HolyArray, body: Code, flags: For_Flags) #expand {
     #if flags & For_Flags.REVERSE {
         for <i: arr.data.count-1..1 {
-            occ_idx, bit_idx := calc_occupied_indices(cast(u32)(i-1));
-            if !(arr.occupied[occ_idx] & 1 << bit_idx) continue;
+            if !arr.occupied[i-1] continue;
 
             `it_index := i-1;
             #if flags & For_Flags.POINTER `it := *arr.data[i].value;
@@ -107,8 +87,7 @@ for_expansion :: (arr: HolyArray, body: Code, flags: For_Flags) #expand {
         }
     } else {
         for i: 1..arr.data.count-1 {
-            occ_idx, bit_idx := calc_occupied_indices(cast(u32)(i-1));
-            if !(arr.occupied[occ_idx] & 1 << bit_idx) continue;
+            if !arr.occupied[i-1] continue;
 
             `it_index := i-1;
             #if flags & For_Flags.POINTER `it := *arr.data[i].value;
@@ -128,10 +107,7 @@ debug_print :: (arr: HolyArray) {
             continue;
         }
 
-        occ_idx, bit_idx := calc_occupied_indices(cast(u32)(it-1));
-        debugln("% corresponds to %, % indices in occupied array.", it-1, occ_idx, bit_idx);
-        debugln("occupied[%] = %, 1 << % = %", occ_idx, arr.occupied[occ_idx], bit_idx, 1<<bit_idx);
-        if arr.occupied[occ_idx] & (1 << bit_idx) {
+        if arr.occupied[it-1] {
             debugln("occupied");
             print("    %: %\n", it, arr.data[it].value);
         } else {

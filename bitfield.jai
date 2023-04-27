@@ -165,45 +165,45 @@ debug_print :: (bf: ResizableBitField) {
 }
 
 
-#import,file "println.jai";
-#import "Random";
-main :: () {
-    bf : ResizableBitField;
+// #import,file "println.jai";
+// #import "Random";
+// main :: () {
+//     bf : ResizableBitField;
     
-    debug_print(bf);
+//     debug_print(bf);
     
-    bitfield_add(*bf, true );
-    bitfield_add(*bf, false);
-    bitfield_add(*bf, true);
-    bitfield_add(*bf, false);
+//     bitfield_add(*bf, true );
+//     bitfield_add(*bf, false);
+//     bitfield_add(*bf, true);
+//     bitfield_add(*bf, false);
     
-    println("added 1, 0, 1, 0");
-    debug_print(bf);
+//     println("added 1, 0, 1, 0");
+//     debug_print(bf);
     
-    bf[0] = false;
-    bf[3] = true;
+//     bf[0] = false;
+//     bf[3] = true;
     
-    debug_print(bf);
+//     debug_print(bf);
     
-    rem := bitfield_unordered_remove_at(*bf, 1);
-    println("removed @ %: %", 1, rem);
-    debug_print(bf);
+//     rem := bitfield_unordered_remove_at(*bf, 1);
+//     println("removed @ %: %", 1, rem);
+//     debug_print(bf);
     
-    rem = bitfield_pop(*bf);
-    println("popped %", rem);
-    debug_print(bf);
+//     rem = bitfield_pop(*bf);
+//     println("popped %", rem);
+//     debug_print(bf);
     
     
-    for 0..70 bitfield_add(*bf, cast(bool)(random_get() & cast(u64)1));
-    debug_print(bf);
+//     for 0..70 bitfield_add(*bf, cast(bool)(random_get() & cast(u64)1));
+//     debug_print(bf);
     
-    for 0..70 {
-        if bf.count <= 12 break;
-        r := bitfield_ordered_remove_at(*bf, 12);
-        println("removed : %", r);
-        debug_print(bf);
-    }
-}
+//     for 0..70 {
+//         if bf.count <= 12 break;
+//         r := bitfield_ordered_remove_at(*bf, 12);
+//         println("removed : %", r);
+//         debug_print(bf);
+//     }
+// }
 
 
 
