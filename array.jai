@@ -1,19 +1,19 @@
 #import "Basic";
 
-NewResizableArray :: (count: s64, $T: Type, $initialized := true, allocator: Allocator = .{}, alignment: s32 = -1) -> [..]T {
-    arr := NewArray(count, T, initialized, allocator, alignment); // ! alloc
+NewResizableArray :: (count: s64, $T: Type, $initialized := true, alignment: s32 = -1) -> [..]T {
+    arr := NewArray(count, T, initialized, alignment); // ! alloc
     res := resizable(arr);
     res.count = 0;
     return res;
 }
 
-TempNewArray :: (count: s64, $T: Type, $initialized := true, allocator : Allocator = .{}, alignment: s32 = -1) -> []T #expand {
-    res := NewArray(count, T, initialized, allocator, alignment);
+TempNewArray :: (count: s64, $T: Type, $initialized := true, alignment: s32 = -1) -> []T #expand {
+    res := NewArray(count, T, initialized, alignment);
     `defer array_free(res);
     return res;
 }
-TempNewResizableArray :: (count: s64, $T: Type, $initialized := true, allocator : Allocator = .{}, alignment: s32 = -1) -> [..]T #expand {
-    res := NewResizableArray(count, T, initialized, allocator, alignment);
+TempNewResizableArray :: (count: s64, $T: Type, $initialized := true, alignment: s32 = -1) -> [..]T #expand {
+    res := NewResizableArray(count, T, initialized, alignment);
     `defer array_free(res);
     return res;
 }
@@ -26,6 +26,29 @@ TempNewResizableArray :: (count: s64, $T: Type, $initialized := true, allocator 
 // ##       ##     ## ##  #### ##          ##     ##  ##     ## ##  ####       ##
 // ##       ##     ## ##   ### ##    ##    ##     ##  ##     ## ##   ### ##    ##
 // ##        #######  ##    ##  ######     ##    ####  #######  ##    ##  ######
+
+inverse_permutation :: (order: []int) -> []int {
+    res := NewArray(order.count, int);
+    for i: 0..order.count-1 {
+        res[order[i]] = i;
+    }
+    return res;
+}
+
+array_permute :: (a: []$T, order: []int) -> []T {
+    assert(a.count == order.count);
+
+    res := NewArray(a.count, T);
+    for order {
+        res[it_index] = a[it];
+    }
+
+    return res;
+}
+
+array_fill :: inline (a: []$T, value: T) {
+    for *a it.* = value;
+}
 
 array_equal :: (a: []$T, b: []T) -> bool {
     if a.count != b.count return false;
