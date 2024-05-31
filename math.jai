@@ -1,4 +1,5 @@
 #import,file "debug.jai";
+#import "Math";
 
 array_round_to :: (x: [$N]$T, $type: Type) -> [N]type {
     res : [N]type = ---;
@@ -27,3 +28,15 @@ floor_to :: inline (x: $T, $type: Type) -> type {
 floor :: inline (x: $T) -> T {
     return floor_to(x, T);
 }
+
+
+interpolate :: (from: $T, to: T, val: float) -> T {
+    return from * (1.0 - val) + to * val;
+}
+
+
+// clamp :: (min: $MIN, x: $X, max: $MAX) -> X {
+//     if x < min return cast(X)min;
+//     if x > max return cast(X)max;
+//     return x;
+// }
