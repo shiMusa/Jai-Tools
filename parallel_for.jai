@@ -428,6 +428,53 @@ parallel_for_raw :: (thread_group: *Thread_Group, $chunk_size: int, elements: []
     }
 }
 
+parallel_for_raw :: (thread_group: *Thread_Group, $chunk_size: int, elements: []$T, $proc: (*T, int) -> (), $logging:=false) {
+
+    Work :: struct {
+        data: []T;
+        cursor: int;
+    }
+
+    p :: (work: *void) {
+        wk := cast(*Work)work;
+        for *wk.data {
+            proc(it, wk.cursor + it_index);
+        }
+    }
+
+
+    cursor := 0;
+    n_chunks := 0;
+    while true {
+        if cursor >= elements.count then break;
+
+        diff := elements.count - cursor;
+        rest := ifx diff > chunk_size then chunk_size else diff;
+        defer cursor += chunk_size;
+
+        work_data := New(Work);
+        work_data.data = array_view(elements, cursor, rest);
+        work_data.cursor = cursor;
+        
+        work := New(RawParallelForWork);
+        work.data = work_data;
+        work.proc = p;
+        
+        add_work(thread_group, work);
+        n_chunks += 1;
+    }
+
+    #if logging println("% chunks submitted to thread group.", n_chunks);
+
+    // sleep_milliseconds(10);
+    work_remaining := n_chunks;
+    while work_remaining > 0 {
+        results := get_completed_work(thread_group);
+        work_remaining -= results.count;
+        // sleep_milliseconds(10);
+    }
+}
+
 parallel_for_stop :: (thread_group: *Thread_Group, pool: *Pool) {
     shutdown(thread_group);
     release(pool);
