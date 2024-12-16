@@ -1,13 +1,11 @@
 #import "Basic";
 #import,file "debug.jai";
+#import,file "println.jai";
 
 
 
 #scope_file
-calc_indices :: inline (index: u32) -> u32, u32 {
-    // bit_idx := index % 32;
-    // block_idx := (index - bit_idx)/32;
-    // return block_idx, bit_idx;
+calc_indices :: (index: u32) -> u32, u32 #expand {
     return index >> 5, index & 31;
 }
 #scope_export
@@ -16,26 +14,29 @@ calc_indices :: inline (index: u32) -> u32, u32 {
 
 
 
-ResizableBitField :: struct {
+ResizableBitField :: struct(ABC:=true) {
     count: int;
     bits : [..]u32;
+}
+
+set_all :: (using bf: *ResizableBitField, value: bool) {
+    val := cast(u32)value * 0xffffffff;
+    for *bits it.* = val;
 }
 
 bitfield_add :: (bf: *ResizableBitField, value: bool) {
     Debug(false);
     if !(bf.count & 31) {
         debugln("new bits, % & 31 = %", bf.count, bf.count & 31);
-        b := cast(u32)(ifx value 1 else 0);
-        array_add(*bf.bits, b);
+        array_add(*bf.bits, cast(u32)value);
         bf.count += 1;
         return;
     }
     
-    if value {
-        bl, bi := calc_indices(cast(u32)bf.count);
-        debugln("% corresponds to %, %", bf.count, bl, bi);
-        bf.bits[bl] |= (cast(u32)1 << bi);
-    }
+    bl, bi := calc_indices(cast(u32)bf.count);
+    debugln("% corresponds to %, %", bf.count, bl, bi);
+    if value then bf.bits[bl] |=  (cast(u32)1 << bi);
+    else          bf.bits[bl] &= ~(cast(u32)1 << bi);
     bf.count += 1;
 }
 bitfield_pop :: (bf: *ResizableBitField) -> bool {
@@ -53,7 +54,7 @@ bitfield_pop :: (bf: *ResizableBitField) -> bool {
 }
 bitfield_unordered_remove_at :: (bf: *ResizableBitField, index: int) -> bool {
     Debug(false);
-    assert(index < bf.count, "Cannot remove bit at index % when only % bits are available.", index, bf.count);
+    #if bf.ABC assert(index < bf.count, "Cannot remove bit at index % when only % bits are available.", index, bf.count);
     val := (<<bf)[index];
     (<<bf)[index] = (<<bf)[bf.count-1];
     debugln("retrieving (<<bf)[%] = %", bf.count-1, (<<bf)[bf.count-1]);
@@ -67,7 +68,7 @@ bitfield_unordered_remove_at :: (bf: *ResizableBitField, index: int) -> bool {
 }
 bitfield_ordered_remove_at :: (bf: *ResizableBitField, index: int) -> bool {
     Debug(false);
-    assert(index < bf.count, "Cannot remove bit at index % when only % bits are available.", index, bf.count);
+    #if bf.ABC assert(index < bf.count, "Cannot remove bit at index % when only % bits are available.", index, bf.count);
     
     val := bf[0][index];
     
@@ -117,7 +118,8 @@ bitfield_ordered_remove_at :: (bf: *ResizableBitField, index: int) -> bool {
 
 operator [] :: (bf: ResizableBitField, index: int) -> bool {
     Debug(false);
-    if index >= bf.count then return false;
+    #if bf.ABC assert(index < bf.count, "Cannot access index {} out of bounds where count %.", index, bf.count);
+    // if index >= bf.count then return false;
     
     bl, bi := calc_indices(cast(u32)index);
     debugln("% corresponds to %, %", index, bl, bi);
@@ -125,6 +127,7 @@ operator [] :: (bf: ResizableBitField, index: int) -> bool {
     return cast(bool)(bf.bits[bl] & (1 << bi));
 }
 operator []= :: (bf: *ResizableBitField, index: int, value: bool) {
+    #if bf.ABC assert(index < bf.count, "Cannot access bit at index % when count is %.", index, bf.count);
     bl, bi := calc_indices(cast(u32)index);
     if value then bf.bits[bl] |=  (cast(u32)1 << bi);
     else          bf.bits[bl] &= ~(cast(u32)1 << bi);
@@ -133,7 +136,7 @@ operator []= :: (bf: *ResizableBitField, index: int, value: bool) {
 for_expansion :: (bf: ResizableBitField, body: Code, flags: For_Flags) #expand {
     #run assert(flags & For_Flags.POINTER == 0, "ResizableBitField cannot be iterated over by pointer.");
     #if flags & For_Flags.REVERSE {
-        for <i: bf.N-1..0 {
+        for #v2 <i: 0..bf.N-1 {
             bl, bi := calc_indices(cast(u32)i);
             
             `it_index := i;
@@ -165,7 +168,6 @@ debug_print :: (bf: ResizableBitField) {
 }
 
 
-// #import,file "println.jai";
 // #import "Random";
 // main :: () {
 //     bf : ResizableBitField;
@@ -175,13 +177,14 @@ debug_print :: (bf: ResizableBitField) {
 //     bitfield_add(*bf, true );
 //     bitfield_add(*bf, false);
 //     bitfield_add(*bf, true);
+//     bitfield_add(*bf, true);
 //     bitfield_add(*bf, false);
     
-//     println("added 1, 0, 1, 0");
+//     println("added 1,0,1,1,0");
 //     debug_print(bf);
     
 //     bf[0] = false;
-//     bf[3] = true;
+//     bf[4] = true;
     
 //     debug_print(bf);
     
@@ -222,19 +225,22 @@ debug_print :: (bf: ResizableBitField) {
 
 
 
-BitField :: struct(N: int) {
-    n_blocks :: N / 32 + 1;
-    bits : [n_blocks]u32;
+BitField :: struct(N: int, ABC:=true) {
+    bits : [(N >> 5) + 1]u32;
 }
 
+set_all :: (using bf: *BitField, value: bool) {
+    val := ifx value then 0xffffffff else 0;
+    for *bits it.* = val;
+}
 
 operator [] :: (bf: BitField, index: int) -> bool {
-    assert(index < bf.N, "Index % out of bounds %.", index, bf.N);
+    #if bf.ABC assert(index < bf.N, "Index % out of bounds %.", index, bf.N);
     bl, bi := calc_indices(cast(u32)index);
     return cast(bool)(bf.bits[bl] & (1 << bi));
 }
 operator []= :: (bf: *BitField, index: int, value: bool) {
-    assert(index < bf.N, "Index % out of bounds %.", index, bf.N);
+    #if bf.ABC assert(index < bf.N, "Index % out of bounds %.", index, bf.N);
     bl, bi := calc_indices(cast(u32)index);
     if value then bf.bits[bl] |=  (cast(u32)1 << bi);
     else          bf.bits[bl] &= ~(cast(u32)1 << bi);
@@ -243,7 +249,7 @@ operator []= :: (bf: *BitField, index: int, value: bool) {
 for_expansion :: (bf: BitField, body: Code, flags: For_Flags) #expand {
     #run assert(flags & For_Flags.POINTER == 0, "BitField cannot be iterated over by pointer.");
     #if flags & For_Flags.REVERSE {
-        for <i: bf.N-1..0 {
+        for #v2 <i: 0..bf.N-1 {
             bl, bi := calc_indices(cast(u32)i);
             
             `it_index := i;

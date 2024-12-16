@@ -6,35 +6,26 @@
 
 
 
-HolyArray :: struct(T: Type, N: u32) {
+HolyArray :: struct(T: Type, N: u32, ABC:=true) {
+    P :: #run () -> Type {
+        if N < (1 <<  8) then return u8;
+        if N < (1 << 16) then return u16;
+        if N < (1 << 32) then return u32;
+        return u64;
+    }();
     Entry :: union {
         value: T;
-        next_free: u32;
+        next_free: P;
     }
+
+    occupied: BitField(N,ABC=ABC);
     data: [N+1]Entry = #run ()->[N+1]Entry {
         res : [N+1]Entry;
-        for i: 0..N-1 res[i].next_free = cast(u32)(i+1);
+        for i: 0..N-1 res[i].next_free = cast(P)(i+1);
         res[N].next_free = 0;
         return res;
     }();
-    occupied: [(N >> 5) + 1]u32;
 }
-
-#scope_file
-is_occupied :: inline (arr: HolyArray, index: int) -> bool {
-    occ_idx := cast(u32)index >> 5;
-    bit_idx := cast(u32)index & 31;
-    return (arr.occupied[occ_idx] & (cast(u32)1 << bit_idx)) > 0;
-}
-set_occupied :: inline (arr: *HolyArray, index: int, occupied: bool) {
-    occ_idx := cast(u32)index >> 5;
-    bit_idx := cast(u32)index & 31;
-    if occupied
-        arr.occupied[occ_idx] |= cast(u32)1 << bit_idx;
-    else
-        arr.occupied[occ_idx] &= ~(cast(u32)1 << bit_idx);
-}
-#scope_export
 
 array_add :: (arr: *$H/HolyArray, value: H.T) -> int {
     assert(arr.data[0].next_free != 0, "Array full.");
@@ -42,43 +33,41 @@ array_add :: (arr: *$H/HolyArray, value: H.T) -> int {
     next_next_free := arr.data[next_free].next_free;
     arr.data[next_free].value = value;
     arr.data[0].next_free = next_next_free;
-    set_occupied(arr, next_free-1, true);
+    arr.occupied[next_free-1] = true;
     return next_free-1;
 }
 
 array_remove_at :: (arr: *$H/HolyArray, index: int) -> H.T {
     Debug(false);
-    assert(index < H.N, "Index % out of range %.\n", index, H.N);
-    assert(is_occupied(arr, index), "Cannot remove from unoccupied spot at index %.\n", index);
+    #if arr.ABC assert(index < H.N, "Index % out of range %.\n", index, H.N);
+    #if arr.ABC assert(arr.occupied[index], "Cannot remove from unoccupied spot at index %.\n", index);
     res := arr.data[index+1].value;
     arr.data[index+1].next_free = arr.data[0].next_free;
-    arr.data[0].next_free = cast(u32)(index+1);
-
-    set_occupied(arr, index, false);
-
+    arr.data[0].next_free = cast(arr.P)(index+1);
+    arr.occupied[index] = false;
     return res;
 }
 
 
 operator [] :: (arr: $H/HolyArray, index: int) -> H.Entry, bool {
-    assert(index < H.N, "Index % out of range %.\n", index, H.N);
-    return arr.data[index+1], is_occupied(arr, index);
+    #if arr.ABC assert(index < H.N, "Index % out of range %.\n", index, H.N);
+    return arr.data[index+1], arr.occupied[index];
 }
 operator []= :: (arr: *$H/HolyArray, index: int, value: H.T) {
-    assert(index < H.N, "Index % out of range %.\n", index, H.N);
-    assert(is_occupied(arr, index), "Cannot set value at unoccupied index %", index);
+    #if arr.ABC assert(index < H.N, "Index % out of range %.\n", index, H.N);
+    #if arr.ABC assert(arr.occupied[index], "Cannot set value at unoccupied index %", index);
     arr.data[index+1].value = value;
 }
 operator *[] :: (arr: *$H/HolyArray, index: int) -> *H.Entry, bool {
-    assert(index < H.N, "Index % out of range %.\n", index, H.N);
-    return *arr.data[index+1], is_occupied(arr, index);
+    #if arr.ABC assert(index < H.N, "Index % out of range %.\n", index, H.N);
+    return *arr.data[index+1], arr.occupied[index];
 }
 
 for_expansion :: (arr: $H/HolyArray, body: Code, flags: For_Flags) #expand {
     Debug(false);
     #if flags & For_Flags.REVERSE {
         debugln("reverse");
-        for <i: H.N-1..0 {
+        for #v2 <i: 0..H.N-1 {
             #if flags & For_Flags.POINTER val, occ := *arr[i];
             else                          val, occ :=  arr[i];
             
@@ -152,10 +141,10 @@ debug_print :: (arr: $H/HolyArray) {
 //     array_add(*arr, .{2077.0});
 //     array_remove_at(*arr, 2);
 //     debug_print(arr);
-//     for   arr print("%: %\n", it_index, it);
-//     for < arr print("%: %\n", it_index, it);
-//     for  *arr print("%: <<% = %\n", it_index, it, <<it);
-//     for <*arr print("%: <<% = %\n", it_index, it, <<it);
+//     for        arr print("%: %\n", it_index, it);
+//     for #v2 <  arr print("%: %\n", it_index, it);
+//     for       *arr print("%: <<% = %\n", it_index, it, <<it);
+//     for #v2 < *arr print("%: <<% = %\n", it_index, it, <<it);
 //     print("%\n", arr);
 // }
 
@@ -172,39 +161,23 @@ debug_print :: (arr: $H/HolyArray) {
 
 
 
-ResizableHolyArray :: struct(T: Type) {
+ResizableHolyArray :: struct(T: Type, ABC:=true) {
     Entry :: union {
         value: T;
         next_free: u32;
     }
 
+    occupied: ResizableBitField;
     data: [..]Entry;
-    occupied: [..]u32;
 }
 
 NewResizableHolyArray :: ($T: Type) -> ResizableHolyArray(T) {
     res : ResizableHolyArray(T);
     e := array_add(*res.data);
     e.next_free = cast(u32)res.data.count;
-    array_add(*res.occupied, 0);
+    bitfield_add(*res.occupied, false);
     return res;
 }
-
-#scope_file
-is_occupied :: inline (arr: ResizableHolyArray, index: int) -> bool {
-    occ_idx := cast(u32)index >> 5;
-    bit_idx := cast(u32)index & 31;
-    return (arr.occupied[occ_idx] & (cast(u32)1 << bit_idx)) > 0;
-}
-set_occupied :: inline (arr: *ResizableHolyArray, index: int, occupied: bool) {
-    occ_idx := cast(u32)index >> 5;
-    bit_idx := cast(u32)index & 31;
-    if occupied
-        arr.occupied[occ_idx] |= cast(u32)1 << bit_idx;
-    else
-        arr.occupied[occ_idx] &= ~(cast(u32)1 << bit_idx);
-}
-#scope_export
 
 array_add :: (arr: *ResizableHolyArray($T), value: T) -> int {
     Debug(false);
@@ -214,17 +187,10 @@ array_add :: (arr: *ResizableHolyArray($T), value: T) -> int {
         // There is no hole in the array and so we have to append the new value to the end
         index := arr.data.count;
 
-        new_entry := array_add(*arr.data);
-        new_entry.value = value;
+        array_add(*arr.data, arr.Entry.{value=value});
+        bitfield_add(*arr.occupied, true);
+
         arr.data[0].next_free = cast(u32)arr.data.count;
-        
-        
-        occ_idx := cast(u32)(index-1) >> 5;
-        bit_idx := cast(u32)(index-1) & 31;
-        if occ_idx >= arr.occupied.count
-            array_add(*arr.occupied, cast(u32)1 << bit_idx);
-        else
-            arr.occupied[occ_idx] |= cast(u32)1 << bit_idx;
 
         return index-1;
     }
@@ -237,7 +203,7 @@ array_add :: (arr: *ResizableHolyArray($T), value: T) -> int {
     arr.data[hole].value = value;
     arr.data[0].next_free = next_hole;
 
-    set_occupied(arr, hole-1, true);
+    arr.occupied[hole] = true;
 
     return hole-1; // "-1" because the first valid position to put a value is at 1 instead of 0 as usual
 }
@@ -249,21 +215,21 @@ array_remove_at :: (arr: *ResizableHolyArray($T), index: int) -> T {
     arr.data[index+1].next_free = arr.data[0].next_free;
     arr.data[0].next_free = cast(u32)(index+1);
 
-    set_occupied(arr, index, false);
+    arr.occupied[index+1] = false;
 
     return res;
 }
 
 
 operator [] :: (arr: ResizableHolyArray($T), index: int) -> T, bool {
-    return arr.data[index+1].value, is_occupied(arr, index);
+    return arr.data[index+1].value, arr.occupied[index+1];
 }
 operator []= :: (arr: *ResizableHolyArray($T), index: int, value: T) {
-    assert(!is_occupied(arr, index), "Cannot set value at unoccupied index %", index);
-    arr.data[index+1] = value;
+    assert(!arr.occupied[index], "Cannot set value at unoccupied index %", index);
+    arr.data[index+1].value = value;
 }
 operator *[] :: (arr: *ResizableHolyArray($T), index: int) -> *T, bool {
-    return *arr.data[index+1].value, is_occupied(arr, index);
+    return *arr.data[index+1].value, arr.occupied[index+1];
 }
 
 for_expansion :: (arr: ResizableHolyArray, body: Code, flags: For_Flags) #expand {
@@ -276,6 +242,8 @@ for_expansion :: (arr: ResizableHolyArray, body: Code, flags: For_Flags) #expand
             
             `it := val;
             `it_index := i;
+
+            #insert body;
         }
     } else {
         for i: 0..arr.data.count-2 {
@@ -286,6 +254,8 @@ for_expansion :: (arr: ResizableHolyArray, body: Code, flags: For_Flags) #expand
             
             `it := val;
             `it_index := i;
+
+            #insert body;
         }
     }
 }
@@ -296,47 +266,56 @@ debug_print :: (arr: ResizableHolyArray) {
     
     for i: 0..arr.data.count-1 {
         if i == 0 {
-            print("    0: -> %\n", arr.data[0].next_free);
+            print("    0 -> %\n", formatInt(arr.data[0].next_free, minimum_digits=4, padding=#char " "));
             continue;
         }
         
         val, occ := arr[i-1];
-        if occ print("    %: %\n", i, val);
-        else   print("    %: -> %\n", i, val);
+        if occ print(" % : %\n"   , formatInt(i, minimum_digits=4, padding=#char " "), val);
+        else   print(" % -> %\n", 
+            formatInt(i, minimum_digits=4, padding=#char " "), 
+            formatInt(arr.data[i].next_free, minimum_digits=4, padding=#char " ")
+        );
     }
 }
 
 
-// #scope_export
+#scope_export
 
-// Foo :: struct {
-//     v: float64;
-// }
+Foo :: struct {
+    v: float64;
+}
 
-// main :: () {
-//     arr := NewResizableHolyArray(Foo);
+main :: () {
+    arr := NewResizableHolyArray(Foo);
+    debug_print(arr);
 
-//     array_add(*arr, .{42.0});
-//     i313 := array_add(*arr, .{313.0});
-//     print("added 313 at index %\n", i313);
-//     array_add(*arr, .{777.0});
+    array_add(*arr, .{42.0});
+    debug_print(arr);
+    debug_print(arr.occupied);
+    i313 := array_add(*arr, .{313.0});
+    debug_print(arr);
+    print("added 313 at index %\n", i313);
+    array_add(*arr, .{777.0});
+    debug_print(arr);
 
-//     print("ResizableHolyArray: %\n", arr);
-//     for arr print("%: %\n", it_index, it);
+    print("ResizableHolyArray: %\n", arr);
 
-//     v := array_remove_at(*arr, 1);
-//     print("removed value %\n", v);
-//     print("ResizableHolyArray: %\n", arr);
-//     print("next hole: %\n", arr.data[0].next_free);
-//     for arr print("%: %\n", it_index, it);
-//     debug_print(arr);
+    v := array_remove_at(*arr, 1);
+    print("removed value %\n", v);
+    print("ResizableHolyArray: %\n", arr);
+    print("next hole: %\n", arr.data[0].next_free);
+    for arr print("%: %\n", it_index, it);
+    debug_print(arr);
 
-//     array_add(*arr, .{2077.0});
-//     print("ResizableHolyArray: %\n", arr);
-//     print("next hole: %\n", arr.data[0].next_free);
-//     for   arr print("%: %\n", it_index, it);
-//     for < arr print("%: %\n", it_index, it);
-//     for  *arr print("%: <<% = %\n", it_index, it, <<it);
-//     for <*arr print("%: <<% = %\n", it_index, it, <<it);
-//     debug_print(arr);
-// }
+    array_add(*arr, .{2077.0});
+    array_add(*arr, .{1989.0});
+    print("ResizableHolyArray: %\n", arr);
+    print("next hole: %\n", arr.data[0].next_free);
+    for   arr print("%: %\n", it_index, it);
+    for < arr print("%: %\n", it_index, it);
+    for  *arr print("%: <<% = %\n", it_index, it, <<it);
+    for <*arr print("%: <<% = %\n", it_index, it, <<it);
+    
+    debug_print(arr);
+}
