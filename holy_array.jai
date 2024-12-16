@@ -161,28 +161,28 @@ debug_print :: (arr: $H/HolyArray) {
 
 
 
-ResizableHolyArray :: struct(T: Type, ABC:=true) {
+ResizableHolyArray :: struct(T: Type, P:=u32, ABC:=true) {
     Entry :: union {
         value: T;
-        next_free: u32;
+        next_free: P;
     }
 
-    occupied: ResizableBitField;
+    occupied: ResizableBitField(ABC);
     data: [..]Entry;
 }
 
-NewResizableHolyArray :: ($T: Type) -> ResizableHolyArray(T) {
-    res : ResizableHolyArray(T);
+NewResizableHolyArray :: ($T: Type, $P:=u32, $ABC:=true) -> ResizableHolyArray(T,P,ABC) {
+    res : ResizableHolyArray(T,P,ABC);
     e := array_add(*res.data);
-    e.next_free = cast(u32)res.data.count;
+    e.next_free = cast(P)res.data.count;
     bitfield_add(*res.occupied, false);
     return res;
 }
 
-array_add :: (arr: *ResizableHolyArray($T), value: T) -> int {
+array_add :: (arr: *ResizableHolyArray($T,$P,$ABC), value: T) -> int {
     Debug(false);
 
-    if arr.data[0].next_free == arr.data.count {
+    if arr.data[0].next_free == cast(P)arr.data.count {
         debugln("No hole, so need to append to the end.");
         // There is no hole in the array and so we have to append the new value to the end
         index := arr.data.count;
@@ -190,7 +190,7 @@ array_add :: (arr: *ResizableHolyArray($T), value: T) -> int {
         array_add(*arr.data, arr.Entry.{value=value});
         bitfield_add(*arr.occupied, true);
 
-        arr.data[0].next_free = cast(u32)arr.data.count;
+        arr.data[0].next_free = cast(P)arr.data.count;
 
         return index-1;
     }
@@ -203,17 +203,17 @@ array_add :: (arr: *ResizableHolyArray($T), value: T) -> int {
     arr.data[hole].value = value;
     arr.data[0].next_free = next_hole;
 
-    arr.occupied[hole] = true;
+    arr.occupied[cast(int)hole] = true;
 
-    return hole-1; // "-1" because the first valid position to put a value is at 1 instead of 0 as usual
+    return cast(int)hole-1; // "-1" because the first valid position to put a value is at 1 instead of 0 as usual
 }
 
-array_remove_at :: (arr: *ResizableHolyArray($T), index: int) -> T {
+array_remove_at :: (arr: *ResizableHolyArray($T,$P,$ABC), index: int) -> T {
     Debug(false);
-    assert(index < arr.data.count-1, "Cannot remove element at index % from an array of length %.", index, arr.data.count-1);
+    #if ABC assert(index < arr.data.count-1, "Cannot remove element at index % from an array of length %.", index, arr.data.count-1);
     res := arr.data[index+1].value;
     arr.data[index+1].next_free = arr.data[0].next_free;
-    arr.data[0].next_free = cast(u32)(index+1);
+    arr.data[0].next_free = cast(P)(index+1);
 
     arr.occupied[index+1] = false;
 
@@ -221,18 +221,18 @@ array_remove_at :: (arr: *ResizableHolyArray($T), index: int) -> T {
 }
 
 
-operator [] :: (arr: ResizableHolyArray($T), index: int) -> T, bool {
+operator [] :: (arr: ResizableHolyArray($T,$P,$ABC), index: int) -> T, bool {
     return arr.data[index+1].value, arr.occupied[index+1];
 }
-operator []= :: (arr: *ResizableHolyArray($T), index: int, value: T) {
-    assert(!arr.occupied[index], "Cannot set value at unoccupied index %", index);
+operator []= :: (arr: *ResizableHolyArray($T,$P,$ABC), index: int, value: T) {
+    #if ABC assert(!arr.occupied[index], "Cannot set value at unoccupied index %", index);
     arr.data[index+1].value = value;
 }
-operator *[] :: (arr: *ResizableHolyArray($T), index: int) -> *T, bool {
+operator *[] :: (arr: *ResizableHolyArray($T,$P,$ABC), index: int) -> *T, bool {
     return *arr.data[index+1].value, arr.occupied[index+1];
 }
 
-for_expansion :: (arr: ResizableHolyArray, body: Code, flags: For_Flags) #expand {
+for_expansion :: (arr: ResizableHolyArray($T,$P,$ABC), body: Code, flags: For_Flags) #expand {
     #if flags & For_Flags.REVERSE {
         for #v2 <i: 0..arr.data.count-2 {
             #if flags & For_Flags.POINTER val, occ := *arr[i];
@@ -256,13 +256,13 @@ for_expansion :: (arr: ResizableHolyArray, body: Code, flags: For_Flags) #expand
             `it_index := i;
 
             #insert body;
-        }
+        }   
     }
 }
 
-debug_print :: (arr: ResizableHolyArray) {
+debug_print :: (arr: ResizableHolyArray($T,$P,$ABC)) {
     Debug(false);
-    print("ResizableHolyArray(%)\n", arr.T);
+    print("ResizableHolyArray(%)\n", T);
     
     for i: 0..arr.data.count-1 {
         if i == 0 {
@@ -280,42 +280,42 @@ debug_print :: (arr: ResizableHolyArray) {
 }
 
 
-#scope_export
+// #scope_export
 
-Foo :: struct {
-    v: float64;
-}
+// Foo :: struct {
+//     v: float64;
+// }
 
-main :: () {
-    arr := NewResizableHolyArray(Foo);
-    debug_print(arr);
+// main :: () {
+//     arr := NewResizableHolyArray(Foo, u64, true);
+//     debug_print(arr);
 
-    array_add(*arr, .{42.0});
-    debug_print(arr);
-    debug_print(arr.occupied);
-    i313 := array_add(*arr, .{313.0});
-    debug_print(arr);
-    print("added 313 at index %\n", i313);
-    array_add(*arr, .{777.0});
-    debug_print(arr);
+//     array_add(*arr, .{42.0});
+//     debug_print(arr);
+//     debug_print(arr.occupied);
+//     i313 := array_add(*arr, .{313.0});
+//     debug_print(arr);
+//     print("added 313 at index %\n", i313);
+//     array_add(*arr, .{777.0});
+//     debug_print(arr);
 
-    print("ResizableHolyArray: %\n", arr);
+//     print("ResizableHolyArray: %\n", arr);
 
-    v := array_remove_at(*arr, 1);
-    print("removed value %\n", v);
-    print("ResizableHolyArray: %\n", arr);
-    print("next hole: %\n", arr.data[0].next_free);
-    for arr print("%: %\n", it_index, it);
-    debug_print(arr);
+//     v := array_remove_at(*arr, 1);
+//     print("removed value %\n", v);
+//     print("ResizableHolyArray: %\n", arr);
+//     print("next hole: %\n", arr.data[0].next_free);
+//     for arr print("%: %\n", it_index, it);
+//     debug_print(arr);
 
-    array_add(*arr, .{2077.0});
-    array_add(*arr, .{1989.0});
-    print("ResizableHolyArray: %\n", arr);
-    print("next hole: %\n", arr.data[0].next_free);
-    for   arr print("%: %\n", it_index, it);
-    for < arr print("%: %\n", it_index, it);
-    for  *arr print("%: <<% = %\n", it_index, it, <<it);
-    for <*arr print("%: <<% = %\n", it_index, it, <<it);
+//     array_add(*arr, .{2077.0});
+//     array_add(*arr, .{1989.0});
+//     print("ResizableHolyArray: %\n", arr);
+//     print("next hole: %\n", arr.data[0].next_free);
+//     for   arr print("%: %\n", it_index, it);
+//     for < arr print("%: %\n", it_index, it);
+//     for  *arr print("%: <<% = %\n", it_index, it, <<it);
+//     for <*arr print("%: <<% = %\n", it_index, it, <<it);
     
-    debug_print(arr);
-}
+//     debug_print(arr);
+// }
