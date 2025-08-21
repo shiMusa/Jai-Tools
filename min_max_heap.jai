@@ -1,217 +1,238 @@
 #import "Basic";
+#import,file "debug.jai";
 
 
 /*
 https://en.wikipedia.org/wiki/Min-max_heap 
 */
 
+#scope_export
 
+MMH :: struct(T: Type, larger_than: (a: T, b: T) -> bool) {
+	arr: [..]T;
+}
+
+operator *[] :: (heap: *MMH($T, $larger_than), index: u64) -> *T {
+    return *heap.arr[index];
+}
 
 
 #scope_file
 
-swap :: (arr: []MMH_Node, i: int, j: int) #expand {
-	// swap everything
-	tmp := arr[i];
-	arr[i] = arr[j];
-	arr[j] = tmp;
-	// un-swap parents and levels
-	arr[j].parent = arr[i].parent;
-	arr[i].parent = tmp.parent;
-	arr[j].level = arr[i].level;
-	arr[i].level = tmp.level;
+NO_PARENT : u64 : 0xFFFFFFFFFFFFFFFF;
+parent :: (i: u64) -> u64 #expand {
+	return ifx i == 0 || i == NO_PARENT then NO_PARENT else (i-1)/2;
+}
+
+left :: (i: u64) -> u64 #expand {
+	return 2*i+1;
+}
+right :: (i: u64) -> u64 #expand {
+	return 2*i+2;
+}
+
+swap :: inline (heap: MMH, i: u64, j: u64) {
+	tmp := heap[i];
+	heap[i] = heap[j];
+	heap[j] = tmp;
+}
+
+
+
+
+
+// Basic/Int128.jai
+count_leading_zero_bits :: inline (x: u64) -> u8 {
+    // Maybe Basic should have a Simple_Math component with stuff like this in it? - IK
+    n: u8 = ---;
+    #if CPU == .X64 {
+        #asm {
+            lzcnt n, x;
+        }
+    } else {
+        if x == 0 return(64);
+        n = 0;
+        if x <= 0x00000000FFFFFFFF { n = n + 32; x = x << 32; }
+        if x <= 0x0000FFFFFFFFFFFF { n = n + 16; x = x << 16; }
+        if x <= 0x00FFFFFFFFFFFFFF { n = n +  8; x = x <<  8; }
+        if x <= 0x0FFFFFFFFFFFFFFF { n = n +  4; x = x <<  4; }
+        if x <= 0x3FFFFFFFFFFFFFFF { n = n +  2; x = x <<  2; }
+        if x <= 0x7FFFFFFFFFFFFFFF { n = n +  1; }
+    }
+    return n;
+}
+
+
+
+is_min_level :: (i: u64) -> bool #expand {
+	return (63 - count_leading_zero_bits(i + 1)) & 1 == 0;
+}
+
+has_children :: inline (heap: MMH, i: u64) #expand {
+	n := heap.count;
+	return right(i) < n || left(i) < n;
+}
+
+smallest_child_or_grandchild :: (heap: MMH($T, $larger_than), i: u64) -> u64, T, bool {
+	index := -1;
+	value : T; 
+	is_child := true;
+	n := heap.count;
+
+	l := left(i);
+	if l < n {
+		index = l;
+		value = heap[l];
+
+		ll := left(l);
+		lr := right(l);
+
+		if ll < n && !larger_than(heap[ll], value) then { index = ll; value = heap[ll]; is_child = false; }
+		if lr < n && !larger_than(heap[lr], value) then { index = lr; value = heap[lr]; is_child = false; }
+	}
+	r := right(i);
+	if r < n {
+		if !larger_than(heap[r], value) then { index = r; value = heap[r]; is_child = true; }
+		rl := left(l);
+		rr := right(l);
+		if rl < n && !larger_than(heap[rl], value) then { index = rl; value = heap[rl]; is_child = false; }
+		if rr < n && !larger_than(heap[rr], value) then { index = rr; value = heap[rr]; is_child = false; }
+	}
+	return index, value, is_child;
+}
+
+largest_child_or_grandchild :: (heap: MMH($T, $larger_than), i: u64) -> u64, T, bool {
+	index := -1;
+	value : T; 
+	is_child := true;
+	n := heap.count;
+
+	l := left(i);
+	if l < n {
+		index = l;
+		value = heap[l];
+
+		ll := left(l);
+		lr := right(l);
+
+		if ll < n && larger_than(heap[ll], value) then { index = ll; value = heap[ll]; is_child = false; }
+		if lr < n && larger_than(heap[lr], value) then { index = lr; value = heap[lr]; is_child = false; }
+	}
+	r := right(i);
+	if r < n {
+		if larger_than(heap[r], value) then { index = r; value = heap[r]; is_child = true; }
+		rl := left(l);
+		rr := right(l);
+		if rl < n && larger_than(heap[rl], value) then { index = rl; value = heap[rl]; is_child = false; }
+		if rr < n && larger_than(heap[rr], value) then { index = rr; value = heap[rr]; is_child = false; }
+	}
+	return index, value, is_child;
+}
+
+push_down :: (heap: MMH($T, $larger_than), index: u64) {
+	m := index;
+
+	while has_children(heap, m) {
+		i := m;
+		if is_min_level(i) {
+			m, v, is_child := smallest_child_or_grandchild(heap, i);
+			if !larger_than(v, heap[i]) {
+				swap(heap, m, i);
+				if !is_child { 
+					if larger_than(v, heap[parent(m)]) then swap(heap, m, parent(m));
+				} else break;
+			} else break;
+		} else {
+			m, v, is_child := mmh_largest_child_or_grandchild(heap, i);
+			if larger_than(v, heap[i]) {
+				swap(heap, m, i);
+				if !is_child {
+					if !larger_than(v, heap[parent(m)]) then swap(heap, m, parent(m));
+				} else break;
+			} else break;
+		}
+	}
+}
+
+
+push_up_min :: (heap: MMH($T, $larger_than), index: u64) {
+	Debug(true);
+	i := index;
+	gp := parent(parent(i));
+	debugln("gp = %", gp);
+	while gp != NO_PARENT && !larger_than(heap[i], heap[gp]) {
+		swap(heap, i, gp);
+		i = gp;
+		gp = parent(parent(i));
+	}
+}
+push_up_max :: (heap: MMH($T, $larger_than), index: u64) {
+	Debug(true);
+	i := index;
+	gp := parent(parent(i));
+	debugln("gp = %", gp);
+	while gp != NO_PARENT && larger_than(heap[i], heap[gp]) {
+		debugln("% @ % > % @ %, so swap", heap[i], i, heap[gp], gp);
+		swap(heap, i, gp);
+		i = gp;
+		gp = parent(parent(i));
+	}
+}
+
+push_up :: (heap: MMH($T, $larger_than), i: u64) {
+	Debug(true);
+	debugln("i = %", i);
+	if i == 0 return;
+
+	if is_min_level(i) {
+		debugln("is min level");
+		p := parent(i);
+		if larger_than(heap[i], heap[p]) {
+			swap(heap, i, p);
+			push_up_max(heap, p);
+		} else {
+			push_up_min(heap, i);
+		}
+	} else {
+		debugln("is max level");
+		p := parent(i);
+		if !larger_than(heap[i], heap[p]) {
+			swap(heap, i, p);
+			push_up_min(heap, p);
+		} else {
+			push_up_max(heap, i);
+		}
+	}
 }
 
 #scope_export
 
-MMH_Node :: struct(T: Type, cmp: (a: T, b: T) -> bool) {
-	level  : int =  0;
-	parent : int = -1;
-	left   : int = -1;
-	right  : int = -1;
-	value: T;
+mmh_append :: (heap: *MMH($T, $larger_than), value: T) {
+	Debug(true);
+	index := heap.arr.count;
+	array_add(*heap.arr, value);
+	debugln("added % @ %", value, index);
+	push_up(heap, cast(u64, index));
 }
 
-mmh_is_min_level :: inline (arr: []MMH_Node, i: int) -> bool {
-	return arr[i].level % 2 == 0;
+mmh_min :: inline (heap: MMH($T, $larger_than)) -> T {
+	return heap.arr[0];
 }
 
-mmh_has_children :: inline (arr: []MMH_Node, i: int) -> bool {
-	return arr[i] != -1 || arr[i] != -1;
+mmh_max :: inline (heap: MMH($T, $larger_than)) -> T {
+	if heap.arr.count == 1 return heap.arr[0];
+	return ifx heap.arr[1] > heap.arr[2] then heap.arr[1] else heap.arr[2];
 }
-
-mmh_smallest_child_or_grandchild :: (arr: []MMH_Node($T, $cmp), i: int) -> int, T, bool {
-	i := -1;
-	v : T; 
-	is_child := true;
-
-	i_l  := arr[i].left;
-	i_r := arr[i].right;
-
-	if i_l  != -1 { 
-		n := arr[i_l];
-
-		i = i_l ; 
-		v = n.value; 
-
-		i_ll := n.left;
-		i_lr := n.right;
-
-		if i_ll != -1 && cmp(arr[i_ll].value, v) { i = i_ll; v = arr[i_ll].value; is_child = false; }
-		if i_lr != -1 && cmp(arr[i_lr].value, v) { i = i_lr; v = arr[i_lr].value; is_child = false; }
-	}
-	if i_r != -1 {
-		n := arr[i_r];
-
-		if cmp(n.value, v) { i = i_r; v = n.value; is_child = true; };
-
-		i_rl := n.left;
-		i_rr := n.right;
-
-		if i_rl != -1 && cmp(arr[i_rl].value, v) { i = i_rl; v = arr[i_rl].value; is_child = false; }
-		if i_rr != -1 && cmp(arr[i_rr].value, v) { i = i_rr; v = arr[i_rr].value; is_child = false; }
-	}
-
-	return i, v, is_child;
-}
-
-mmh_largest_child_or_grandchild :: (arr: []MMH_Node($T, $cmp), i: int) -> int, T, bool {
-	i := -1;
-	v : T; 
-	is_child := true;
-
-	i_l  := arr[i].left;
-	i_r := arr[i].right;
-
-	if i_l  != -1 { 
-		n := arr[i_l];
-
-		i = i_l ; 
-		v = n.value; 
-
-		i_ll := n.left;
-		i_lr := n.right;
-
-		if i_ll != -1 && !cmp(arr[i_ll].value, v) { i = i_ll; v = arr[i_ll].value; is_child = false; }
-		if i_lr != -1 && !cmp(arr[i_lr].value, v) { i = i_lr; v = arr[i_lr].value; is_child = false; }
-	}
-	if i_r != -1 {
-		n := arr[i_r];
-
-		if !cmp(n.value, v) { i = i_r; v = n.value; is_child = true; };
-
-		i_rl := n.left;
-		i_rr := n.right;
-
-		if i_rl != -1 && !cmp(arr[i_rl].value, v) { i = i_rl; v = arr[i_rl].value; is_child = false; }
-		if i_rr != -1 && !cmp(arr[i_rr].value, v) { i = i_rr; v = arr[i_rr].value; is_child = false; }
-	}
-
-	return i, v, is_child;
-}
-
-mmh_grandparent_of :: (arr: []MMH_Node, i: int) -> int {
-	p := arr[i].parent;
-	return ifx p == -1 then -1 else arr[p].parent;
-}
-
-mmh_push_down :: (arr: []MMH_Node($T, $cmp), index: int) {
-	m := index;
-
-	while mmh_has_children(arr, m) {
-		i := m;
-		if mmh_is_min_level(arr, i) {
-			m, v, is_child := mmh_smallest_child_or_grandchild(arr, i);
-			if !cmp(v, arr[i].value) {
-				swap(arr, m, i);
-				if !is_child { 
-					if cmp(v, arr[arr[m].parent].value) then swap(arr, m, arr[m].parent);
-				} else break;
-			} else break;
-		} else {
-			m, v, is_child := mmh_largest_child_or_grandchild(arr, i);
-			if cmp(v, arr[i].value) {
-				swap(arr, m, i);
-				if !is_child {
-					if !cmp(v, arr[arr[m].parent].value) then swap(arr, m, arr[m].parent);
-				} else break;
-			} else break;
-		}
-	}
-}
-
-
-mmh_push_up_min :: (arr: []MMH_Node($T, $cmp), index: int) {
-	i := index;
-	gp := mmh_grandparent_of(arr, i);
-	while gp != -1 && !cmp(arr[i].value, arr[gp].value) {
-		swap(arr, i, gp);
-		i = gp;
-	}
-}
-mmh_push_up_max :: (arr: []MMH_Node($T, $cmp), index: int) {
-	i := index;
-	gp := mmh_grandparent_of(arr, i);
-	while gp != -1 && cmp(arr[i].value, arr[gp].value) {
-		swap(arr, i, gp);
-		i = gp;
-	}
-}
-
-mmh_push_up :: (arr: []MMH_Node($T, $cmp), i: int) {
-	if i == 0 return;
-
-	if mmh_is_min_level(arr, i) {
-		p := arr[i].parent;
-		if cmp(arr[i].value, arr[p].value) {
-			swap(arr, i, p);
-			mmh_push_up_max(arr, p);
-		} else {
-			mmh_push_up_min(arr, i);
-		}
-	} else {
-		p := arr[i].parent;
-		if !cmp(arr[i].value, arr[p].value) {
-			swap(arr, i, p);
-			mmh_push_up_min(arr, p);
-		} else {
-			mmh_push_up_max(arr, i);
-		}
-	}
-}
-
-mmh_build :: (arr: *[]MMH_Node) {
-	for <i: arr.count/2..1 {
-		mmh_push_down(arr, i);
-	}
-}
-
-// mmh_min :: (arr: []MMH_Node($T)) -> T {
-
-// }
-
-
-mmh_append :: (arr: *[..]MMH_Node($T, $cmp), value: T) {
-	n : MMH_Node(T, cmp);
-	n.value = value;
-	index := arr.count;
-	array_add(arr, n);
-	mmh_push_up(arr.*, index);
-}
-
-
-
 
 main :: () {
-	cmp :: (a: int, b: int) -> bool { return a >= b; }
-	arr : [..]MMH_Node(int, cmp);
+	larger_than :: (a: u64, b: u64) -> bool { return a >= b; }
+	heap : MMH(u64, larger_than);
 
-	values :: int.[46, 51, 31, 21, 13, 31, 10, 11, 16, 71, 41, 8];
+	values :: u64.[46, 51, 31, 21, 13, 31, 10, 11, 16, 71, 41, 8];
 
 	for v: values {
-		mmh_append(*arr, v);
-
-		print("added % -----------------\n", v);
-		for arr print("%\n", it);
+		print("adding % -----------------\n", v);
+		mmh_append(*heap, v);
+		for heap.arr print("%\n", it);
 	}
 }
