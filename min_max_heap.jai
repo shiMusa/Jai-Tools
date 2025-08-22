@@ -1,3 +1,5 @@
+#module_parameters(RELEASE := false);
+
 #import "Basic";
 #import,file "debug.jai";
 
@@ -9,15 +11,21 @@ https://en.wikipedia.org/wiki/Min-max_heap
 #scope_export
 
 MMH :: struct(T: Type, larger_than: (a: T, b: T) -> bool) {
-	arr: [..]T;
+	items: [..]T;
 }
 
 operator *[] :: (heap: *MMH($T, $larger_than), index: u64) -> *T {
-    return *heap.arr[index];
+	Check(index);
+    return *heap.items[index];
 }
 
 
 #scope_file
+
+Check :: (i: u64) #expand {
+	#if !RELEASE assert(cast(u64, `heap.items.count) > i, "index % out of range < %.", i, `heap.items.count);
+}
+
 
 NO_PARENT : u64 : 0xFFFFFFFFFFFFFFFF;
 parent :: (i: u64) -> u64 #expand {
@@ -31,10 +39,20 @@ right :: (i: u64) -> u64 #expand {
 	return 2*i+2;
 }
 
-swap :: inline (heap: MMH, i: u64, j: u64) {
-	tmp := heap[i];
-	heap[i] = heap[j];
-	heap[j] = tmp;
+swap :: inline (i: u64, j: u64) #expand {
+	Debug(false && !RELEASE);
+	#if !RELEASE heap := `heap;
+	Check(i); Check(j);
+	debugln("swapping % & %", i, j);
+	
+	tmp := `heap[i];
+	`heap[i] = `heap[j];
+	`heap[j] = tmp;
+	
+	#if DEBUG {
+		debugln("after swapping:");
+		for `heap.items debugln("%: %", it_index, it);
+	}
 }
 
 
@@ -68,86 +86,103 @@ is_min_level :: (i: u64) -> bool #expand {
 	return (63 - count_leading_zero_bits(i + 1)) & 1 == 0;
 }
 
-has_children :: inline (heap: MMH, i: u64) #expand {
-	n := heap.count;
+has_children :: inline (heap: MMH, i: u64) -> bool #expand {
+	Check(i);
+	n := cast(u64)heap.items.count;
 	return right(i) < n || left(i) < n;
 }
 
-smallest_child_or_grandchild :: (heap: MMH($T, $larger_than), i: u64) -> u64, T, bool {
-	index := -1;
-	value : T; 
+
+NO_CHILDREN : u64 : 0xFFFFFFFFFFFFFFFF;
+smallest_child_or_grandchild :: (heap: MMH($T, $larger_than), i: u64) -> u64, bool {
+	Check(i);
+	index := NO_CHILDREN;
 	is_child := true;
-	n := heap.count;
+	n := cast(u64)heap.items.count;
 
 	l := left(i);
 	if l < n {
 		index = l;
-		value = heap[l];
 
-		ll := left(l);
+		ll :=  left(l);
 		lr := right(l);
 
-		if ll < n && !larger_than(heap[ll], value) then { index = ll; value = heap[ll]; is_child = false; }
-		if lr < n && !larger_than(heap[lr], value) then { index = lr; value = heap[lr]; is_child = false; }
+		if ll < n && !larger_than(heap[ll], heap[index]) then { index = ll; is_child = false; }
+		if lr < n && !larger_than(heap[lr], heap[index]) then { index = lr; is_child = false; }
 	}
 	r := right(i);
 	if r < n {
-		if !larger_than(heap[r], value) then { index = r; value = heap[r]; is_child = true; }
-		rl := left(l);
-		rr := right(l);
-		if rl < n && !larger_than(heap[rl], value) then { index = rl; value = heap[rl]; is_child = false; }
-		if rr < n && !larger_than(heap[rr], value) then { index = rr; value = heap[rr]; is_child = false; }
+		if !larger_than(heap[r], heap[index]) then { index = r; is_child = true; }
+		rl :=  left(r);
+		rr := right(r);
+		if rl < n && !larger_than(heap[rl], heap[index]) then { index = rl; is_child = false; }
+		if rr < n && !larger_than(heap[rr], heap[index]) then { index = rr; is_child = false; }
 	}
-	return index, value, is_child;
+	return index, is_child;
 }
 
-largest_child_or_grandchild :: (heap: MMH($T, $larger_than), i: u64) -> u64, T, bool {
-	index := -1;
-	value : T; 
+largest_child_or_grandchild :: (heap: MMH($T, $larger_than), i: u64) -> u64, bool {
+	Debug(false && !RELEASE);
+	Check(i);
+	index := NO_CHILDREN;
 	is_child := true;
-	n := heap.count;
+	n := cast(u64)heap.items.count;
 
 	l := left(i);
+	debugln("l: % @ %", heap[l], l);
 	if l < n {
 		index = l;
-		value = heap[l];
 
-		ll := left(l);
+		ll :=  left(l);
 		lr := right(l);
+		debugln("ll: % @ %, lr: % @ %", heap[ll], ll, heap[lr], lr);
 
-		if ll < n && larger_than(heap[ll], value) then { index = ll; value = heap[ll]; is_child = false; }
-		if lr < n && larger_than(heap[lr], value) then { index = lr; value = heap[lr]; is_child = false; }
+		if ll < n && larger_than(heap[ll], heap[index]) then { index = ll; is_child = false; }
+		if lr < n && larger_than(heap[lr], heap[index]) then { index = lr; is_child = false; }
 	}
 	r := right(i);
+	debugln("r: % @ %", heap[r], r);
 	if r < n {
-		if larger_than(heap[r], value) then { index = r; value = heap[r]; is_child = true; }
-		rl := left(l);
-		rr := right(l);
-		if rl < n && larger_than(heap[rl], value) then { index = rl; value = heap[rl]; is_child = false; }
-		if rr < n && larger_than(heap[rr], value) then { index = rr; value = heap[rr]; is_child = false; }
+		if larger_than(heap[r], heap[index]) then { index = r; is_child = true; }
+		rl :=  left(r);
+		rr := right(r);
+		debugln("rl: % @ %, rr: % @ %", heap[rl], rl, heap[rr], rr);
+		if rl < n && larger_than(heap[rl], heap[index]) then { index = rl; is_child = false; }
+		if rr < n && larger_than(heap[rr], heap[index]) then { index = rr; is_child = false; }
 	}
-	return index, value, is_child;
+	return index, is_child;
 }
 
 push_down :: (heap: MMH($T, $larger_than), index: u64) {
+	Debug(false && !RELEASE);
+	Check(index);
 	m := index;
 
 	while has_children(heap, m) {
+		debugln("% has children", m);
 		i := m;
 		if is_min_level(i) {
-			m, v, is_child := smallest_child_or_grandchild(heap, i);
-			if !larger_than(v, heap[i]) {
-				swap(heap, m, i);
+			debugln("% is min level", i);
+			_m, is_child := smallest_child_or_grandchild(heap, i);
+			m = _m;
+			debugln("smallest child or grandchild: % @ %, is child? %", heap[m], m, is_child);
+			if !larger_than(heap[m], heap[i]) {
+				debugln("% @ % is smaller than % @ %", heap[m], m, heap[i], i);
+				swap(m, i);
 				if !is_child { 
-					if larger_than(v, heap[parent(m)]) then swap(heap, m, parent(m));
+					if larger_than(heap[m], heap[parent(m)]) then swap(m, parent(m));
 				} else break;
 			} else break;
 		} else {
-			m, v, is_child := mmh_largest_child_or_grandchild(heap, i);
-			if larger_than(v, heap[i]) {
-				swap(heap, m, i);
+			debugln("% is max level", i);
+			_m, is_child := largest_child_or_grandchild(heap, i);
+			m = _m;
+			debugln("largest child or grandchild: % @ %, is child? %", heap[m], m, is_child);
+			if larger_than(heap[m], heap[i]) {
+				debugln("% @ % is larger than % @ %", heap[m], m, heap[i], i);
+				swap(m, i);
 				if !is_child {
-					if !larger_than(v, heap[parent(m)]) then swap(heap, m, parent(m));
+					if !larger_than(heap[m], heap[parent(m)]) then swap(m, parent(m));
 				} else break;
 			} else break;
 		}
@@ -156,31 +191,34 @@ push_down :: (heap: MMH($T, $larger_than), index: u64) {
 
 
 push_up_min :: (heap: MMH($T, $larger_than), index: u64) {
-	Debug(true);
+	Debug(false && !RELEASE);
+	Check(index);
 	i := index;
 	gp := parent(parent(i));
 	debugln("gp = %", gp);
 	while gp != NO_PARENT && !larger_than(heap[i], heap[gp]) {
-		swap(heap, i, gp);
+		swap(i, gp);
 		i = gp;
 		gp = parent(parent(i));
 	}
 }
 push_up_max :: (heap: MMH($T, $larger_than), index: u64) {
-	Debug(true);
+	Debug(false && !RELEASE);
+	Check(index);
 	i := index;
 	gp := parent(parent(i));
 	debugln("gp = %", gp);
 	while gp != NO_PARENT && larger_than(heap[i], heap[gp]) {
 		debugln("% @ % > % @ %, so swap", heap[i], i, heap[gp], gp);
-		swap(heap, i, gp);
+		swap(i, gp);
 		i = gp;
 		gp = parent(parent(i));
 	}
 }
 
 push_up :: (heap: MMH($T, $larger_than), i: u64) {
-	Debug(true);
+	Debug(false && !RELEASE);
+	Check(i);
 	debugln("i = %", i);
 	if i == 0 return;
 
@@ -188,7 +226,7 @@ push_up :: (heap: MMH($T, $larger_than), i: u64) {
 		debugln("is min level");
 		p := parent(i);
 		if larger_than(heap[i], heap[p]) {
-			swap(heap, i, p);
+			swap(i, p);
 			push_up_max(heap, p);
 		} else {
 			push_up_min(heap, i);
@@ -197,7 +235,7 @@ push_up :: (heap: MMH($T, $larger_than), i: u64) {
 		debugln("is max level");
 		p := parent(i);
 		if !larger_than(heap[i], heap[p]) {
-			swap(heap, i, p);
+			swap(i, p);
 			push_up_min(heap, p);
 		} else {
 			push_up_max(heap, i);
@@ -207,32 +245,60 @@ push_up :: (heap: MMH($T, $larger_than), i: u64) {
 
 #scope_export
 
-mmh_append :: (heap: *MMH($T, $larger_than), value: T) {
-	Debug(true);
-	index := heap.arr.count;
-	array_add(*heap.arr, value);
+append :: (heap: *MMH($T, $larger_than), value: T) {
+	Debug(false && !RELEASE);
+	index := heap.items.count;
+	array_add(*heap.items, value);
 	debugln("added % @ %", value, index);
 	push_up(heap, cast(u64, index));
 }
 
-mmh_min :: inline (heap: MMH($T, $larger_than)) -> T {
-	return heap.arr[0];
+min :: inline (heap: MMH($T, $larger_than)) -> T {
+	#if !RELEASE assert(heap.items.count > 0, "heap empty.");
+	return heap.items[0];
 }
 
-mmh_max :: inline (heap: MMH($T, $larger_than)) -> T {
-	if heap.arr.count == 1 return heap.arr[0];
-	return ifx heap.arr[1] > heap.arr[2] then heap.arr[1] else heap.arr[2];
+max :: inline (heap: MMH($T, $larger_than)) -> T {
+	#if !RELEASE assert(heap.items.count > 0, "heap empty.");
+	if heap.items.count == 1 return heap.items[0];
+	return ifx larger_than(heap.items[1], heap.items[2]) then heap.items[1] else heap.items[2];
 }
 
-main :: () {
-	larger_than :: (a: u64, b: u64) -> bool { return a >= b; }
-	heap : MMH(u64, larger_than);
+pop_min :: (heap_p: *MMH($T, $larger_than)) -> T {
+	#if !RELEASE assert(heap_p.items.count > 0, "cannot pop from empty heap.");
+	heap := heap_p.*;
+	
+	res := heap[0];
+	heap[0] = heap[cast(u64, heap.items.count - 1)];
+	heap_p.items.count -= 1;  // keep memory
+	push_down(heap, 0);
+	return res;
+}
 
-	values :: u64.[46, 51, 31, 21, 13, 31, 10, 11, 16, 71, 41, 8];
+pop_max :: (heap_p: *MMH($T, $larger_than)) -> T {
+	Debug(false && !RELEASE);
+	#if !RELEASE assert(heap_p.items.count > 0, "cannot pop from empty heap.");
+	heap := heap_p.*;
+	n := heap_p.items.count;
 
-	for v: values {
-		print("adding % -----------------\n", v);
-		mmh_append(*heap, v);
-		for heap.arr print("%\n", it);
+	if n == 1 {
+		res := heap[0];
+		heap_p.items.count -= 1;
+		debugln("max % @ 0", res);
+		return res;
 	}
+	if n == 2 {
+		res := heap[1];
+		heap_p.items.count -=1 ;
+		debugln("max % @ 1", res);
+		return res;
+	}
+
+	i := cast(u64)( ifx larger_than(heap[1], heap[2]) then 1 else 2 );
+	res := heap[i];
+	debugln("max % @ %", res, i);
+	heap[i] = heap[cast(u64, heap.items.count - 1)];
+	heap_p.items.count -= 1;
+	push_down(heap, i);
+	return res;
 }
