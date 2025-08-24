@@ -1,5 +1,10 @@
+#module_parameters(RELEASE:=false);
+
 #import "Basic";
 #import "Hash_Table";
+#import "Math";
+#import,file "min_max_heap.jai"(RELEASE=RELEASE);
+#import,file "debug.jai";
 
 
 /*
@@ -65,74 +70,86 @@ function A_Star(start, goal, h)
 a_star :: (
 	start: int, 
 	goal: int, 
-	$heuristic: (node: int) -> float, 
-	$weight : (from: int, to: int) -> float
+	$heuristic: (from: int, to: int) -> float, 
+	$weight : (from: int, to: int) -> float,
+	$neighbors : (node: int) -> []int
 ) -> []int {
-	
-	Entry :: struct {
-		node: int;  // neg values for next free node in array
-		next_higher_index: int;
-	}
-	open_set : [..]Entry;
-
-
-	// double-linked list removal
-	remove :: (index: int) {
-		n := open_set[index];
-		n.node = open_set[0].node;
-		open_set[0].node = index;
-
-		higher := n.next_higher_index;
-
-		open_set[lower ].next_higher_index = higher;
-		open_set[higher].next_lower_index  = lower;
-	}
-
-	add :: (node: int) {
-		free := -open_set[0].node;
-
-		go_lower := 
-
-
-		if free == open_set.count {
-			// new entry to array
-			array_add(*open_set, .{})
-		}
-	}
-
-
-	reconstruct_path :: (node: int) -> []int {
-		res : [..]int;
-		// TODO
-		return res;
-	}
-	
-	array_add(*open_set, .{   -2, 1, 1});  // will always just point to the lowest fscore entry
-	array_add(*open_set, .{start, 0, 0});
+	Debug(true);
 
 	simple_hash_fct :: inline (n: int) -> u32 { return cast(u32, n); }
 	previous_of           : Table(int,   int, simple_hash_fct);
-	score_until           : Table(int, float, simple_hash_fct);
-	estimated_total_score : Table(int, float, simple_hash_fct);
+	score_until           : Table(int, float, simple_hash_fct);  // gScore, default int
+	estimated_total_score : Table(int, float, simple_hash_fct);  // fScore, default int
 
+	larger_than :: inline (a: int, b: int, data: *void) -> bool { 
+		ets := cast(*Table(int, float, simple_hash_fct))data;
+		a_ok, av := table_find_new(ets, a);
+		if !a_ok av = FLOAT32_INFINITY;
+		b_ok, bv := table_find_new(ets, b);
+		if !b_ok bv = FLOAT32_INFINITY;
+		return av > bv; 
+	}
+	Empty :: struct {}
+	open_set : MMH(int, larger_than);
+	open_set.data = *estimated_total_score;
+	open_set_map : Table(int, Empty, simple_hash_fct);
+
+	reconstruct_path :: () -> []int #expand {
+		res : [..]int;
+		array_add(*res, `current);
+		
+		ok, prev := table_find_new(*`previous_of, `current);
+		while ok {
+			`current = prev;
+			array_add(*res, `current);
+			ok, prev = table_find_new(*`previous_of, `current);
+		}
+		return res;
+	}
+	
+	append(*open_set, start);
 	table_add(*score_until, start, 0.0);
-	table_add(*estimated_total_score, start, heuristic(start));
+	table_add(*estimated_total_score, start, heuristic(start, goal));
 
-	while open_set.count != 0 {
-		ic := open_set[0].next_higher_index;
-		current := open_set[ic].node;
+	while open_set.items.count != 0 {
+		current := pop_min(*open_set);
+		table_remove(*open_set_map, current);
 
-		if current == goal return reconstruct_path(current);
+		debugln("current = %", current);
 
-		array_remove()
+		if current == goal return reconstruct_path();
+
+		neigh := neighbors(current);
+		defer array_free(neigh);
+
+		debugln("neighbours: %", neigh);
+
+		for n: neigh {
+			ok, score := table_find_new(*score_until, current);
+			tentative_score : float;
+			if !ok tentative_score = FLOAT32_INFINITY;
+			else   tentative_score = score + weight(n, current);
+
+			debugln("    %: tentative_score = %", n, tentative_score);
+
+			ok, score = table_find_new(*score_until, n);
+			if !ok score = FLOAT32_INFINITY;
+			
+			debugln("    %: score_until = %", n, score);
+
+			if tentative_score < score {
+				table_set(*previous_of, n, current);
+				table_set(*score_until, n, tentative_score);
+				ets := tentative_score + heuristic(n, goal);
+				table_set(*estimated_total_score, n, ets);
+				debugln("     > added with estimated_total_score = %", ets);
+				if !table_contains(*open_set_map, n) {
+					append(*open_set, n);
+					table_add(*open_set_map, n, .{});
+				}
+			}
+		}
 	}
 
 	return .[];
-}
-
-
-
-
-main :: () {
-	print("Pathfinding\n");
 }

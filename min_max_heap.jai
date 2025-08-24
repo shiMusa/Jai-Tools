@@ -10,11 +10,12 @@ https://en.wikipedia.org/wiki/Min-max_heap
 
 #scope_export
 
-MMH :: struct(T: Type, larger_than: (a: T, b: T) -> bool) {
+MMH :: struct(T: Type, larger_than: (a: T, b: T, data: *void) -> bool) {
 	items: [..]T;
+	data: *void = null;
 }
 
-operator *[] :: (heap: *MMH($T, $larger_than), index: u64) -> *T {
+operator *[] :: (heap: *MMH, index: u64) -> *heap.T {
 	Check(index);
     return *heap.items[index];
 }
@@ -107,16 +108,16 @@ smallest_child_or_grandchild :: (heap: MMH($T, $larger_than), i: u64) -> u64, bo
 		ll :=  left(l);
 		lr := right(l);
 
-		if ll < n && !larger_than(heap[ll], heap[index]) then { index = ll; is_child = false; }
-		if lr < n && !larger_than(heap[lr], heap[index]) then { index = lr; is_child = false; }
+		if ll < n && !larger_than(heap[ll], heap[index], heap.data) then { index = ll; is_child = false; }
+		if lr < n && !larger_than(heap[lr], heap[index], heap.data) then { index = lr; is_child = false; }
 	}
 	r := right(i);
 	if r < n {
-		if !larger_than(heap[r], heap[index]) then { index = r; is_child = true; }
+		if !larger_than(heap[r], heap[index], heap.data) then { index = r; is_child = true; }
 		rl :=  left(r);
 		rr := right(r);
-		if rl < n && !larger_than(heap[rl], heap[index]) then { index = rl; is_child = false; }
-		if rr < n && !larger_than(heap[rr], heap[index]) then { index = rr; is_child = false; }
+		if rl < n && !larger_than(heap[rl], heap[index], heap.data) then { index = rl; is_child = false; }
+		if rr < n && !larger_than(heap[rr], heap[index], heap.data) then { index = rr; is_child = false; }
 	}
 	return index, is_child;
 }
@@ -137,18 +138,18 @@ largest_child_or_grandchild :: (heap: MMH($T, $larger_than), i: u64) -> u64, boo
 		lr := right(l);
 		debugln("ll: % @ %, lr: % @ %", heap[ll], ll, heap[lr], lr);
 
-		if ll < n && larger_than(heap[ll], heap[index]) then { index = ll; is_child = false; }
-		if lr < n && larger_than(heap[lr], heap[index]) then { index = lr; is_child = false; }
+		if ll < n && larger_than(heap[ll], heap[index], heap.data) then { index = ll; is_child = false; }
+		if lr < n && larger_than(heap[lr], heap[index], heap.data) then { index = lr; is_child = false; }
 	}
 	r := right(i);
 	debugln("r: % @ %", heap[r], r);
 	if r < n {
-		if larger_than(heap[r], heap[index]) then { index = r; is_child = true; }
+		if larger_than(heap[r], heap[index], heap.data) then { index = r; is_child = true; }
 		rl :=  left(r);
 		rr := right(r);
 		debugln("rl: % @ %, rr: % @ %", heap[rl], rl, heap[rr], rr);
-		if rl < n && larger_than(heap[rl], heap[index]) then { index = rl; is_child = false; }
-		if rr < n && larger_than(heap[rr], heap[index]) then { index = rr; is_child = false; }
+		if rl < n && larger_than(heap[rl], heap[index], heap.data) then { index = rl; is_child = false; }
+		if rr < n && larger_than(heap[rr], heap[index], heap.data) then { index = rr; is_child = false; }
 	}
 	return index, is_child;
 }
@@ -166,11 +167,11 @@ push_down :: (heap: MMH($T, $larger_than), index: u64) {
 			_m, is_child := smallest_child_or_grandchild(heap, i);
 			m = _m;
 			debugln("smallest child or grandchild: % @ %, is child? %", heap[m], m, is_child);
-			if !larger_than(heap[m], heap[i]) {
+			if !larger_than(heap[m], heap[i], heap.data) {
 				debugln("% @ % is smaller than % @ %", heap[m], m, heap[i], i);
 				swap(m, i);
 				if !is_child { 
-					if larger_than(heap[m], heap[parent(m)]) then swap(m, parent(m));
+					if larger_than(heap[m], heap[parent(m)], heap.data) then swap(m, parent(m));
 				} else break;
 			} else break;
 		} else {
@@ -178,11 +179,11 @@ push_down :: (heap: MMH($T, $larger_than), index: u64) {
 			_m, is_child := largest_child_or_grandchild(heap, i);
 			m = _m;
 			debugln("largest child or grandchild: % @ %, is child? %", heap[m], m, is_child);
-			if larger_than(heap[m], heap[i]) {
+			if larger_than(heap[m], heap[i], heap.data) {
 				debugln("% @ % is larger than % @ %", heap[m], m, heap[i], i);
 				swap(m, i);
 				if !is_child {
-					if !larger_than(heap[m], heap[parent(m)]) then swap(m, parent(m));
+					if !larger_than(heap[m], heap[parent(m)], heap.data) then swap(m, parent(m));
 				} else break;
 			} else break;
 		}
@@ -196,7 +197,7 @@ push_up_min :: (heap: MMH($T, $larger_than), index: u64) {
 	i := index;
 	gp := parent(parent(i));
 	debugln("gp = %", gp);
-	while gp != NO_PARENT && !larger_than(heap[i], heap[gp]) {
+	while gp != NO_PARENT && !larger_than(heap[i], heap[gp], heap.data) {
 		swap(i, gp);
 		i = gp;
 		gp = parent(parent(i));
@@ -208,7 +209,7 @@ push_up_max :: (heap: MMH($T, $larger_than), index: u64) {
 	i := index;
 	gp := parent(parent(i));
 	debugln("gp = %", gp);
-	while gp != NO_PARENT && larger_than(heap[i], heap[gp]) {
+	while gp != NO_PARENT && larger_than(heap[i], heap[gp], heap.data) {
 		debugln("% @ % > % @ %, so swap", heap[i], i, heap[gp], gp);
 		swap(i, gp);
 		i = gp;
@@ -225,7 +226,7 @@ push_up :: (heap: MMH($T, $larger_than), i: u64) {
 	if is_min_level(i) {
 		debugln("is min level");
 		p := parent(i);
-		if larger_than(heap[i], heap[p]) {
+		if larger_than(heap[i], heap[p], heap.data) {
 			swap(i, p);
 			push_up_max(heap, p);
 		} else {
@@ -234,7 +235,7 @@ push_up :: (heap: MMH($T, $larger_than), i: u64) {
 	} else {
 		debugln("is max level");
 		p := parent(i);
-		if !larger_than(heap[i], heap[p]) {
+		if !larger_than(heap[i], heap[p], heap.data) {
 			swap(i, p);
 			push_up_min(heap, p);
 		} else {
@@ -261,7 +262,7 @@ min :: inline (heap: MMH($T, $larger_than)) -> T {
 max :: inline (heap: MMH($T, $larger_than)) -> T {
 	#if !RELEASE assert(heap.items.count > 0, "heap empty.");
 	if heap.items.count == 1 return heap.items[0];
-	return ifx larger_than(heap.items[1], heap.items[2]) then heap.items[1] else heap.items[2];
+	return ifx larger_than(heap.items[1], heap.items[2], heap.data) then heap.items[1] else heap.items[2];
 }
 
 pop_min :: (heap_p: *MMH($T, $larger_than)) -> T {
@@ -294,7 +295,7 @@ pop_max :: (heap_p: *MMH($T, $larger_than)) -> T {
 		return res;
 	}
 
-	i := cast(u64)( ifx larger_than(heap[1], heap[2]) then 1 else 2 );
+	i := cast(u64)( ifx larger_than(heap[1], heap[2], heap.data) then 1 else 2 );
 	res := heap[i];
 	debugln("max % @ %", res, i);
 	heap[i] = heap[cast(u64, heap.items.count - 1)];

@@ -3,7 +3,7 @@
 
 
 main :: () {
-	larger_than :: (a: u64, b: u64) -> bool { return a >= b; }
+	larger_than :: (a: u64, b: u64, data: *void) -> bool { return a >= b; }
 	heap : MMH(u64, larger_than);
 
 	values :: u64.[46, 51, 31, 21, 13, 31, 10, 11, 16, 71, 41, 8];
