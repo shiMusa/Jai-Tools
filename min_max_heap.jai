@@ -246,6 +246,10 @@ push_up :: (heap: MMH($T, $larger_than), i: u64) {
 
 #scope_export
 
+mmh_free :: (heap: *MMH) {
+	array_free(heap.items);
+}
+
 append :: (heap: *MMH($T, $larger_than), value: T) {
 	Debug(false && !RELEASE);
 	index := heap.items.count;

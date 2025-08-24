@@ -69,12 +69,13 @@ function A_Star(start, goal, h)
 
 a_star :: (
 	start: int, 
-	goal: int, 
-	$heuristic: (from: int, to: int) -> float, 
-	$weight : (from: int, to: int) -> float,
-	$neighbors : (node: int) -> []int
+	goal: int,
+	data: $T, 
+	$heuristic: (from: int, to: int, data: T) -> float, 
+	$weight : (from: int, to: int, data: T) -> float,
+	$neighbors : (node: int, data: T) -> []int
 ) -> []int {
-	Debug(true);
+	Debug(false);
 
 	simple_hash_fct :: inline (n: int) -> u32 { return cast(u32, n); }
 	previous_of           : Table(int,   int, simple_hash_fct);
@@ -109,7 +110,7 @@ a_star :: (
 	
 	append(*open_set, start);
 	table_add(*score_until, start, 0.0);
-	table_add(*estimated_total_score, start, heuristic(start, goal));
+	table_add(*estimated_total_score, start, heuristic(start, goal, data));
 
 	while open_set.items.count != 0 {
 		current := pop_min(*open_set);
@@ -117,9 +118,19 @@ a_star :: (
 
 		debugln("current = %", current);
 
-		if current == goal return reconstruct_path();
+		if current == goal {
+			res := reconstruct_path();
 
-		neigh := neighbors(current);
+			deinit(*previous_of);
+			deinit(*score_until);
+			deinit(*estimated_total_score);
+			deinit(*open_set_map);
+			mmh_free(*open_set);
+
+			return res;
+		}
+
+		neigh := neighbors(current, data);
 		defer array_free(neigh);
 
 		debugln("neighbours: %", neigh);
@@ -128,7 +139,7 @@ a_star :: (
 			ok, score := table_find_new(*score_until, current);
 			tentative_score : float;
 			if !ok tentative_score = FLOAT32_INFINITY;
-			else   tentative_score = score + weight(n, current);
+			else   tentative_score = score + weight(n, current, data);
 
 			debugln("    %: tentative_score = %", n, tentative_score);
 
@@ -140,7 +151,7 @@ a_star :: (
 			if tentative_score < score {
 				table_set(*previous_of, n, current);
 				table_set(*score_until, n, tentative_score);
-				ets := tentative_score + heuristic(n, goal);
+				ets := tentative_score + heuristic(n, goal, data);
 				table_set(*estimated_total_score, n, ets);
 				debugln("     > added with estimated_total_score = %", ets);
 				if !table_contains(*open_set_map, n) {
@@ -151,5 +162,11 @@ a_star :: (
 		}
 	}
 
+
+	deinit(*previous_of);
+	deinit(*score_until);
+	deinit(*estimated_total_score);
+	deinit(*open_set_map);
+	mmh_free(*open_set);
 	return .[];
 }
