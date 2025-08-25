@@ -5,6 +5,7 @@
 #import "Math";
 #import,file "min_max_heap.jai"(RELEASE=RELEASE);
 #import,file "debug.jai";
+#import,file "array.jai";
 
 
 /*
@@ -73,7 +74,8 @@ a_star :: (
 	data: $T, 
 	$heuristic: (from: int, to: int, data: T) -> float, 
 	$weight : (from: int, to: int, data: T) -> float,
-	$neighbors : (node: int, data: T) -> []int
+	$neighbors : (node: int, data: T) -> []int,
+	$reversed := false
 ) -> []int {
 	Debug(false);
 
@@ -105,6 +107,10 @@ a_star :: (
 			array_add(*res, `current);
 			ok, prev = table_find_new(*`previous_of, `current);
 		}
+
+		// reverse such that start is at index 0
+		#if !reversed array_reverse(res);
+
 		return res;
 	}
 	

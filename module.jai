@@ -10,3 +10,4 @@ Graph       :: #import,file "graph.jai";
 ParallelFor :: #import,file "parallel_for.jai";
 Console     :: #import,file "console.jai";
 MMH         :: #import,file "min_max_heap.jai";
+Pathfinding :: #import,file "pathfinding.jai";

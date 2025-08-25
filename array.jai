@@ -66,3 +66,12 @@ minmax :: (arr: []$T) -> T, T {
     }
     return min, max;
 }
+
+array_reverse :: (arr: []$T) {
+    n := arr.count;
+    for 0..n/2-1 {  // n=3 => 0, n=4 => 1, n=5 => 1 [0, 1, 2, 3, 4], no need to swap middle
+        tmp := arr[it];
+        arr[it] = arr[n-1-it];
+        arr[n-1-it] = tmp;
+    }
+}
