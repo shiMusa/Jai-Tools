@@ -10,9 +10,9 @@ https://en.wikipedia.org/wiki/Min-max_heap
 
 #scope_export
 
-MMH :: struct(T: Type, larger_than: (a: T, b: T, data: *void) -> bool) {
+MMH :: struct(T: Type, larger_than: (a: T, b: T, data: $D) -> bool) {
 	items: [..]T;
-	data: *void = null;
+	data: D;
 }
 
 operator *[] :: (heap: *MMH, index: u64) -> *heap.T {

@@ -80,12 +80,13 @@ a_star :: (
 	Debug(false);
 
 	simple_hash_fct :: inline (n: int) -> u32 { return cast(u32, n); }
-	previous_of           : Table(int,   int, simple_hash_fct);
-	score_until           : Table(int, float, simple_hash_fct);  // gScore, default int
-	estimated_total_score : Table(int, float, simple_hash_fct);  // fScore, default int
+	FTable :: Table(int, float, simple_hash_fct);
 
-	larger_than :: inline (a: int, b: int, data: *void) -> bool { 
-		ets := cast(*Table(int, float, simple_hash_fct))data;
+	previous_of           : Table(int, int, simple_hash_fct);
+	score_until           : FTable;  // gScore, default int
+	estimated_total_score : FTable;  // fScore, default int
+
+	larger_than :: inline (a: int, b: int, ets: *FTable) -> bool { 
 		a_ok, av := table_find_new(ets, a);
 		if !a_ok av = FLOAT32_INFINITY;
 		b_ok, bv := table_find_new(ets, b);
