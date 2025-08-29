@@ -250,6 +250,10 @@ mmh_free :: (heap: *MMH) {
 	array_free(heap.items);
 }
 
+mmh_reset_keeping_memory :: (heap: *MMH) {
+	array_reset_keeping_memory(heap.items);
+}
+
 append :: (heap: *MMH($T, $larger_than), value: T) {
 	Debug(false && !RELEASE);
 	index := heap.items.count;
@@ -269,15 +273,20 @@ max :: inline (heap: MMH($T, $larger_than)) -> T {
 	return ifx larger_than(heap.items[1], heap.items[2], heap.data) then heap.items[1] else heap.items[2];
 }
 
-pop_min :: (heap_p: *MMH($T, $larger_than)) -> T {
-	#if !RELEASE assert(heap_p.items.count > 0, "cannot pop from empty heap.");
+remove_at :: (heap_p: *MMH($T, $larger_than), index: u64) -> T {
+	#if !RELEASE assert(cast(u64)heap_p.items.count > index, "cannot remove at index % when heap has size %.", index, heap_p.items.count);
 	heap := heap_p.*;
 	
-	res := heap[0];
-	heap[0] = heap[cast(u64, heap.items.count - 1)];
+	res := heap[index];
+	heap[index] = heap[cast(u64, heap.items.count - 1)];
 	heap_p.items.count -= 1;  // keep memory
-	push_down(heap, 0);
+	push_down(heap, index);
 	return res;
+}
+
+pop_min :: (heap_p: *MMH($T, $larger_than)) -> T {
+	#if !RELEASE assert(heap_p.items.count > 0, "cannot pop from empty heap.");
+	return inline remove_at(heap_p, 0);
 }
 
 pop_max :: (heap_p: *MMH($T, $larger_than)) -> T {
@@ -300,10 +309,5 @@ pop_max :: (heap_p: *MMH($T, $larger_than)) -> T {
 	}
 
 	i := cast(u64)( ifx larger_than(heap[1], heap[2], heap.data) then 1 else 2 );
-	res := heap[i];
-	debugln("max % @ %", res, i);
-	heap[i] = heap[cast(u64, heap.items.count - 1)];
-	heap_p.items.count -= 1;
-	push_down(heap, i);
-	return res;
+	return inline remove_at(heap_p, i);
 }
