@@ -251,7 +251,7 @@ mmh_free :: (heap: *MMH) {
 }
 
 mmh_reset_keeping_memory :: (heap: *MMH) {
-	array_reset_keeping_memory(heap.items);
+	array_reset_keeping_memory(*heap.items);
 }
 
 append :: (heap: *MMH($T, $larger_than), value: T) {
