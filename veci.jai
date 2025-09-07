@@ -57,7 +57,53 @@ color_u8 :: ($$rgba: u32) -> [4]u8 {
 
 
 
+norm_1 :: inline (v: Vec2) -> float {
+    return abs(v.x) + abs(v.y);
+}
+norm_2 :: inline (v: Vec2) -> float {
+    return length(v);
+}
+norm_l :: (v: Vec2, $$l: float) -> float {
+    #if is_constant(l) {
+        powl :: #bake_arguments pow(power=l);
+        sqrtl :: #bake_arguments pow(power=1.0/l);
+        return sqrtl(powl(abs(v.x)) + powl(abs(v.y)));
+    } else {
+        return pow(pow(abs(v.x), l) + pow(abs(v.y), l), 1.0/l);
+    }
+}
 
+norm_1 :: inline (v: Vec3) -> float {
+    return abs(v.x) + abs(v.y) + abs(v.z);
+}
+norm_2 :: inline (v: Vec3) -> float {
+    return length(v);
+}
+norm_l :: (v: Vec3, $$l: float) -> float {
+    #if is_constant(l) {
+        powl :: #bake_arguments pow(power=l);
+        sqrtl :: #bake_arguments pow(power=1.0/l);
+        return sqrtl(powl(abs(v.x)) + powl(abs(v.y)) + powl(abs(v.z)));
+    } else {
+        return pow(pow(abs(v.x), l) + pow(abs(v.y), l) + pow(abs(v.z), l), 1.0/l);
+    }
+}
+
+norm_1 :: inline (v: Vec4) -> float {
+    return abs(v.x) + abs(v.y) + abs(v.z) + abs(v.w);
+}
+norm_2 :: inline (v: Vec4) -> float {
+    return length(v);
+}
+norm_l :: (v: Vec4, $$l: float) -> float {
+    #if is_constant(l) {
+        powl :: #bake_arguments pow(power=l);
+        sqrtl :: #bake_arguments pow(power=1.0/l);
+        return sqrtl(powl(abs(v.x)) + powl(abs(v.y)) + powl(abs(v.z)) + powl(abs(v.w)));
+    } else {
+        return pow(pow(abs(v.x), l) + pow(abs(v.y), l) + pow(abs(v.z), l) + pow(abs(v.w), l), 1.0/l);
+    }
+}
 
 
 
