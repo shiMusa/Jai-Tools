@@ -75,3 +75,8 @@ array_reverse :: (arr: []$T) {
         arr[n-1-it] = tmp;
     }
 }
+
+array_copy :: (dest: []$T, src: []T) {
+    assert(dest.count == src.count, "destination (count %) and source (count %) are not the same size!", dest.count, src.count);
+    memcpy(dest.data, src.data, src.count * size_of(T));
+}
