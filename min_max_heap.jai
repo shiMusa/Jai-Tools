@@ -311,3 +311,16 @@ pop_max :: (heap_p: *MMH($T, $larger_than)) -> T {
 	i := cast(u64)( ifx larger_than(heap[1], heap[2], heap.data) then 1 else 2 );
 	return inline remove_at(heap_p, i);
 }
+
+
+for_expansion :: (mmh: *MMH($T, $larger_than), body: Code, flags: For_Flags) #expand {
+	#run assert( (flags & .REVERSE) == 0, "Iteration in reverse is not implemented (yet) for MMH.");
+	
+	i := 0;
+	while mmh.items.count > 0 {
+		`it := pop_min(mmh);
+		`it_index := i;
+		#insert body;
+		i += 1;
+	}
+}
