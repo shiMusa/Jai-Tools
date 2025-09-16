@@ -397,9 +397,7 @@ parallel_for_raw :: (thread_group: *Thread_Group, $chunk_size: int, elements: []
 
     cursor := 0;
     n_chunks := 0;
-    while true {
-        if cursor >= elements.count then break;
-
+    while cursor < elements.count {
         diff := elements.count - cursor;
         rest := ifx diff > chunk_size then chunk_size else diff;
         defer cursor += chunk_size;
@@ -445,9 +443,7 @@ parallel_for_raw :: (thread_group: *Thread_Group, $chunk_size: int, elements: []
 
     cursor := 0;
     n_chunks := 0;
-    while true {
-        if cursor >= elements.count then break;
-
+    while cursor < elements.count {
         diff := elements.count - cursor;
         rest := ifx diff > chunk_size then chunk_size else diff;
         defer cursor += chunk_size;
