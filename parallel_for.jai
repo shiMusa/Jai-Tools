@@ -352,7 +352,7 @@ RawParallelForWork :: struct {
 }
 
 
-parallel_for_init :: ($logging:=false) -> *Thread_Group, *Pool {
+parallel_for_init :: ($logging:=false) -> *Thread_Group, Allocator {
     num_threads : s32 = get_number_of_processors(type=.ALL_LOGICAL);
     #if logging print("initializing % threads\n", num_threads);
 
@@ -376,10 +376,10 @@ parallel_for_init :: ($logging:=false) -> *Thread_Group, *Pool {
     allocator.proc = pool_allocator_proc;
     allocator.data = pool;
 
-    return thread_group, pool;
+    return thread_group, allocator;
 }
 
-parallel_for_raw :: (thread_group: *Thread_Group, $chunk_size: int, elements: []$T, global: *$G, $proc: (*T, int, *G) -> (), $logging:=false) {
+parallel_for_raw :: (thread_group: *Thread_Group, pool_allocator: Allocator, $chunk_size: int, elements: []$T, global: *$G, $proc: (*T, int, *G) -> (), $logging:=false) {
 
     Work :: struct {
         data: []T;
@@ -402,12 +402,12 @@ parallel_for_raw :: (thread_group: *Thread_Group, $chunk_size: int, elements: []
         rest := ifx diff > chunk_size then chunk_size else diff;
         defer cursor += chunk_size;
 
-        work_data := New(Work);
+        work_data := New(Work,, pool_allocator);
         work_data.data = array_view(elements, cursor, rest);
         work_data.cursor = cursor;
         work_data.global = global;
         
-        work := New(RawParallelForWork);
+        work := New(RawParallelForWork,, pool_allocator);
         work.data = work_data;
         work.proc = p;
         
@@ -424,9 +424,11 @@ parallel_for_raw :: (thread_group: *Thread_Group, $chunk_size: int, elements: []
         work_remaining -= results.count;
         // sleep_milliseconds(10);
     }
+
+    reset(cast(*Pool)pool_allocator.data);
 }
 
-parallel_for_raw :: (thread_group: *Thread_Group, $chunk_size: int, elements: []$T, $proc: (*T, int) -> (), $logging:=false) {
+parallel_for_raw :: (thread_group: *Thread_Group, pool_allocator: Allocator, $chunk_size: int, elements: []$T, $proc: (*T, int) -> (), $logging:=false) {
 
     Work :: struct {
         data: []T;
@@ -448,12 +450,12 @@ parallel_for_raw :: (thread_group: *Thread_Group, $chunk_size: int, elements: []
         rest := ifx diff > chunk_size then chunk_size else diff;
         defer cursor += chunk_size;
 
-        work_data := New(Work);
+        work_data := New(Work,,pool_allocator);
         work_data.data = array_view(elements, cursor, rest);
         work_data.cursor = cursor;
         
-        work := New(RawParallelForWork);
-        work.data = work_data;
+        work := New(RawParallelForWork,,pool_allocator);
+        work.data = work_data; 
         work.proc = p;
         
         add_work(thread_group, work);
@@ -469,9 +471,11 @@ parallel_for_raw :: (thread_group: *Thread_Group, $chunk_size: int, elements: []
         work_remaining -= results.count;
         // sleep_milliseconds(10);
     }
+
+    reset(cast(*Pool)pool_allocator.data);
 }
 
-parallel_for_stop :: (thread_group: *Thread_Group, pool: *Pool) {
+parallel_for_stop :: (thread_group: *Thread_Group, pool_allocator: Allocator) {
     shutdown(thread_group);
-    release(pool);
+    release(cast(*Pool)pool_allocator.data);
 }
